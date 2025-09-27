@@ -5,9 +5,8 @@ async function testContractConnection() {
     console.log("🔧 Testing Basic Contract Connection");
     console.log("==================================");
 
-    const rpcUrl =
-        "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
-    const contractAddress = "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+    const rpcUrl = "https://testnet.evm.nodes.onflow.org";
+    const contractAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
 
     const publicClient = createPublicClient({
         chain: worldchainSepolia,

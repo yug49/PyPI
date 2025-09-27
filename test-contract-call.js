@@ -4,9 +4,8 @@ async function testContractCall() {
     console.log("🔧 Testing Direct Contract Call...");
 
     try {
-        const rpcUrl =
-            "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
-        const contractAddress = "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+        const rpcUrl = "https://testnet.evm.nodes.onflow.org";
+        const contractAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
         const orderId =
             "0x2e3ca2e75fd1b193a8df070bcc33f03d6aa3edfa0e29fe418d881837e0f6da1c";
 
@@ -28,7 +27,7 @@ async function testContractCall() {
                 blockExplorers: {
                     default: {
                         name: "Explorer",
-                        url: "https://worldchain-sepolia.explorer.alchemy.com",
+                        url: "https://testnet.evm.nodes.onflow.org",
                     },
                 },
             },
