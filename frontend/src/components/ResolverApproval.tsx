@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { useResolverApproval, usePyusdFaucet, formatTokenAmount } from '@/lib/useContracts'
+import { useResolverApproval, useMockUsdcFaucet, formatTokenAmount } from '@/lib/useContracts'
 
 export default function ResolverApproval() {
   const { address, isConnected } = useAccount()
@@ -24,7 +24,7 @@ export default function ResolverApproval() {
     formattedFaucetAmount,
     isLoading: isFaucetLoading,
     error: faucetError
-  } = usePyusdFaucet()
+  } = useMockUsdcFaucet()
 
   if (!isConnected) {
     return (
@@ -36,7 +36,7 @@ export default function ResolverApproval() {
         </div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">Connect Wallet to Apply as Resolver</h3>
         <p className="text-gray-600">
-          Please connect your wallet to approve PYUSD staking and apply to become a resolver.
+          Please connect your wallet to approve MockUSDC staking and apply to become a resolver.
         </p>
       </div>
     )
@@ -54,7 +54,7 @@ export default function ResolverApproval() {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Apply to be Resolver</h3>
-          <p className="text-sm text-gray-600">Approve PYUSD staking to become eligible as a resolver</p>
+          <p className="text-sm text-gray-600">Approve MockUSDC staking to become eligible as a resolver</p>
         </div>
       </div>
 
@@ -64,19 +64,19 @@ export default function ResolverApproval() {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-blue-700">Required Stake:</span>
-            <span className="font-medium text-blue-800">{formattedStakingAmount} PYUSD</span>
+            <span className="font-medium text-blue-800">{formattedStakingAmount} USDC</span>
           </div>
           <div className="flex justify-between">
             <span className="text-blue-700">Your Balance:</span>
             <span className={`font-medium ${hasEnoughBalance ? 'text-green-600' : 'text-red-600'}`}>
-              {balance ? formatTokenAmount(balance, 6) : '0'} PYUSD
+              {balance ? formatTokenAmount(balance, 6) : '0'} USDC
             </span>
           </div>
           {currentAllowance !== undefined && (
             <div className="flex justify-between">
               <span className="text-blue-700">Current Allowance:</span>
               <span className="font-medium text-blue-800">
-                {formatTokenAmount(currentAllowance, 6)} PYUSD
+                {formatTokenAmount(currentAllowance, 6)} USDC
               </span>
             </div>
           )}
@@ -93,8 +93,8 @@ export default function ResolverApproval() {
             <span className="text-red-700 font-medium">Insufficient Balance</span>
           </div>
           <p className="text-red-600 text-sm mb-3">
-            You need {formattedStakingAmount} PYUSD to stake as a resolver. 
-            Use the test faucet below to get PYUSD tokens.
+            You need {formattedStakingAmount} USDC to stake as a resolver. 
+            Use the test faucet below to get MockUSDC tokens.
           </p>
           <button
             onClick={async () => {
@@ -111,10 +111,10 @@ export default function ResolverApproval() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Getting PYUSD...
+                Getting MockUSDC...
               </div>
             ) : (
-              `🚰 Get ${formattedFaucetAmount} PYUSD from Faucet`
+              `🚰 Get ${formattedFaucetAmount} MockUSDC from Faucet`
             )}
           </button>
         </div>
@@ -129,7 +129,7 @@ export default function ResolverApproval() {
             <span className="text-purple-700 font-medium">Active Resolver</span>
           </div>
           <p className="text-purple-600 text-sm mt-1">
-            🎉 Congratulations! You are already registered as a resolver. Your stake of {formattedStakingAmount} PYUSD is active.
+            🎉 Congratulations! You are already registered as a resolver. Your stake of {formattedStakingAmount} USDC is active.
           </p>
         </div>
       )}
@@ -143,7 +143,7 @@ export default function ResolverApproval() {
             <span className="text-green-700 font-medium">Approval Complete</span>
           </div>
           <p className="text-green-600 text-sm mt-1">
-            You have successfully approved {formattedStakingAmount} PYUSD for staking. 
+            You have successfully approved {formattedStakingAmount} USDC for staking. 
             An admin can now add you as a resolver, and your stake will be automatically deducted.
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function ResolverApproval() {
                 Approving...
               </div>
             ) : (
-              `Approve ${formattedStakingAmount} PYUSD for Staking`
+              `Approve ${formattedStakingAmount} USDC for Staking`
             )}
           </button>
         )}
@@ -203,7 +203,7 @@ export default function ResolverApproval() {
             disabled
             className="flex-1 bg-gray-300 text-gray-500 py-3 px-6 rounded-lg font-medium cursor-not-allowed"
           >
-            Insufficient PYUSD Balance
+            Insufficient MockUSDC Balance
           </button>
         )}
       </div>
@@ -212,8 +212,8 @@ export default function ResolverApproval() {
       <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
         <h5 className="text-sm font-medium text-gray-800 mb-2">How to Become a Resolver:</h5>
         <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
-          <li><strong>Get PYUSD:</strong> Use the faucet above to get {formattedStakingAmount} PYUSD tokens</li>
-          <li><strong>Approve Staking:</strong> Click the approval button to allow the contract to use your PYUSD</li>
+          <li><strong>Get MockUSDC:</strong> Use the faucet above to get {formattedStakingAmount} MockUSDC tokens</li>
+          <li><strong>Approve Staking:</strong> Click the approval button to allow the contract to use your MockUSDC</li>
           <li><strong>Wait for Admin:</strong> An administrator will add you as a resolver, automatically deducting the stake</li>
           <li><strong>Start Resolving:</strong> Once approved, you can accept and resolve orders on the platform</li>
         </ol>
