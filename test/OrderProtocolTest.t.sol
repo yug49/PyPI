@@ -5,8 +5,8 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {OrderProtocol} from "../src/OrderProtocol.sol";
 import {MakerRegistry} from "../src/MakerRegistry.sol";
 import {ResolverRegistry} from "../src/ResolverRegistry.sol";
-import {MockPYUSD} from "../src/mock/MockPYUSD.sol";
 import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {MockUSDC} from "../src/mock/MockUSDC.sol";
 import {IERC20Metadata} from "../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract OrderProtocolTest is Test {
@@ -14,7 +14,7 @@ contract OrderProtocolTest is Test {
     OrderProtocol public orderProtocol;
     MakerRegistry public makerRegistry;
     ResolverRegistry public resolverRegistry;
-    MockPYUSD public pyusdToken; // PYUSD token (6 decimals)
+    MockUSDC public usdCoinToken; // USD Coin token (6 decimals)
 
     // Test addresses
     address public owner;
@@ -35,12 +35,12 @@ contract OrderProtocolTest is Test {
     string public constant UPI_ADDRESS = "user@paytm";
     string public constant UPI_ADDRESS_2 = "user2@gpay";
     string public constant PAYMENT_PROOF = "razorpay_payout_123456";
-    uint256 public constant TOKEN_SUPPLY = 1_000_000 * 1e6; // 1 million PYUSD (6 decimals)
+    uint256 public constant TOKEN_SUPPLY = 1_000_000 * 1e6; // 1 million USD Coin (6 decimals)
     uint256 public constant TEST_AMOUNT = 1000 * 1e18; // 1000 INR
     uint256 public constant START_PRICE = 200 * 1e18; // 200 INR per token (Dutch auction starts high)
     uint256 public constant END_PRICE = 100 * 1e18; // 100 INR per token (Dutch auction ends low)
     uint256 public constant ACCEPTED_PRICE = 150 * 1e18; // 150 INR per token (between start and end)
-    uint256 public constant STAKING_AMOUNT = 100 * 1e6; // 100 PYUSD (6 decimals)
+    uint256 public constant STAKING_AMOUNT = 100 * 1e6; // 100 USD Coin (6 decimals)
 
     // Helper functions to mirror the contract's calculation logic
     function _calculateTokenAmount(uint256 _inrAmount, uint256 _priceInrPerToken, address _token)
@@ -67,8 +67,8 @@ contract OrderProtocolTest is Test {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
-        // Deploy mock PYUSD token (6 decimals)
-        pyusdToken = new MockPYUSD();
+        // Deploy mock USD Coin token (6 decimals)
+        usdCoinToken = new MockUSDC();
 
         // Set configuration values first
         maxOrderTime = 15 seconds;
@@ -79,7 +79,7 @@ contract OrderProtocolTest is Test {
         vm.prank(owner);
         makerRegistry = new MakerRegistry();
         vm.prank(owner);
-        resolverRegistry = new ResolverRegistry(address(pyusdToken));
+        resolverRegistry = new ResolverRegistry(address(usdCoinToken));
         vm.prank(owner);
         orderProtocol = new OrderProtocol(
             maxOrderTime,
@@ -88,7 +88,7 @@ contract OrderProtocolTest is Test {
             maxFulfillmentTime,
             resolverFee,
             address(makerRegistry),
-            address(pyusdToken)
+            address(usdCoinToken)
         );
 
         // Setup makers (register them properly)
@@ -97,22 +97,22 @@ contract OrderProtocolTest is Test {
 
         // Register resolvers with staking
         vm.prank(resolver1);
-        pyusdToken.approve(address(resolverRegistry), type(uint256).max);
+        usdCoinToken.approve(address(resolverRegistry), type(uint256).max);
         vm.prank(resolver2);
-        pyusdToken.approve(address(resolverRegistry), type(uint256).max);
+        usdCoinToken.approve(address(resolverRegistry), type(uint256).max);
 
-        // Mint PYUSD tokens to everyone
-        pyusdToken.mint(maker1, TOKEN_SUPPLY);
-        pyusdToken.mint(maker2, TOKEN_SUPPLY);
-        pyusdToken.mint(relayer, TOKEN_SUPPLY);
-        pyusdToken.mint(resolver1, TOKEN_SUPPLY);
-        pyusdToken.mint(resolver2, TOKEN_SUPPLY);
+        // Mint USD Coin tokens to everyone
+        usdCoinToken.mint(maker1, TOKEN_SUPPLY);
+        usdCoinToken.mint(maker2, TOKEN_SUPPLY);
+        usdCoinToken.mint(relayer, TOKEN_SUPPLY);
+        usdCoinToken.mint(resolver1, TOKEN_SUPPLY);
+        usdCoinToken.mint(resolver2, TOKEN_SUPPLY);
 
         // Approve OrderProtocol to spend tokens
         vm.prank(maker1);
-        pyusdToken.approve(address(orderProtocol), type(uint256).max);
+        usdCoinToken.approve(address(orderProtocol), type(uint256).max);
         vm.prank(maker2);
-        pyusdToken.approve(address(orderProtocol), type(uint256).max);
+        usdCoinToken.approve(address(orderProtocol), type(uint256).max);
 
         // Add resolvers to registry (this will stake their tokens)
         vm.prank(owner);
@@ -145,7 +145,7 @@ contract OrderProtocolTest is Test {
         assertEq(orderProtocol.i_resolverFee(), resolverFee);
         assertEq(orderProtocol.i_resolverRegistry(), address(resolverRegistry));
         assertEq(orderProtocol.i_makerRegistry(), address(makerRegistry));
-        assertEq(orderProtocol.i_pyusdContractAddress(), address(pyusdToken));
+        assertEq(orderProtocol.i_usdCoinContractAddress(), address(usdCoinToken));
         assertEq(orderProtocol.owner(), owner);
         assertEq(orderProtocol.s_orderCount(), 0);
         assertEq(orderProtocol.PRECISION(), 1e18);
@@ -155,8 +155,8 @@ contract OrderProtocolTest is Test {
         // No orders initially
         assertEq(orderProtocol.s_orderCount(), 0);
 
-        // PYUSD token should be set as the supported token
-        assertEq(orderProtocol.i_pyusdContractAddress(), address(pyusdToken));
+        // USD Coin token should be set as the supported token
+        assertEq(orderProtocol.i_usdCoinContractAddress(), address(usdCoinToken));
 
         // Makers should be registered
         assertTrue(makerRegistry.isMaker(maker1));
@@ -172,10 +172,10 @@ contract OrderProtocolTest is Test {
     //////////////////////////////////////////////
 
     function test_CreateOrder_Success() public {
-        uint256 initialTokenBalance = pyusdToken.balanceOf(maker1);
+        uint256 initialTokenBalance = usdCoinToken.balanceOf(maker1);
 
         // Calculate expected amounts using the same logic as the contract
-        uint256 expectedTokenAmount = _calculateTokenAmount(TEST_AMOUNT, END_PRICE, address(pyusdToken));
+        uint256 expectedTokenAmount = _calculateTokenAmount(TEST_AMOUNT, END_PRICE, address(usdCoinToken));
         uint256 expectedFee = _calculateResolverFee(expectedTokenAmount);
         uint256 expectedTotal = expectedTokenAmount + expectedFee;
 
@@ -197,8 +197,8 @@ contract OrderProtocolTest is Test {
         assertFalse(order.fullfilled);
 
         // Check token transfer
-        assertEq(pyusdToken.balanceOf(maker1), initialTokenBalance - expectedTotal);
-        assertEq(pyusdToken.balanceOf(address(orderProtocol)), expectedTotal);
+        assertEq(usdCoinToken.balanceOf(maker1), initialTokenBalance - expectedTotal);
+        assertEq(usdCoinToken.balanceOf(address(orderProtocol)), expectedTotal);
 
         // Check order count and mappings
         assertEq(orderProtocol.s_orderCount(), 1);
@@ -298,8 +298,8 @@ contract OrderProtocolTest is Test {
     function test_FulfillOrder_Success() public {
         bytes32 orderId = _createBasicOrder(maker1);
 
-        uint256 initialResolverBalance = pyusdToken.balanceOf(resolver1);
-        uint256 initialMakerBalance = pyusdToken.balanceOf(maker1);
+        uint256 initialResolverBalance = usdCoinToken.balanceOf(resolver1);
+        uint256 initialMakerBalance = usdCoinToken.balanceOf(maker1);
 
         // Accept order
         vm.prank(orderProtocol.i_relayerAddress());
@@ -317,14 +317,14 @@ contract OrderProtocolTest is Test {
         assertEq(orderProtocol.s_orderIdToProof(orderId), PAYMENT_PROOF);
 
         // Verify resolver received tokens (they should get tokens at accepted price + fee)
-        uint256 expectedResolverTokens = _calculateTokenAmount(TEST_AMOUNT, ACCEPTED_PRICE, address(pyusdToken));
+        uint256 expectedResolverTokens = _calculateTokenAmount(TEST_AMOUNT, ACCEPTED_PRICE, address(usdCoinToken));
         uint256 expectedResolverFee = _calculateResolverFee(expectedResolverTokens);
         uint256 expectedTotalToResolver = expectedResolverTokens + expectedResolverFee;
 
-        assertEq(pyusdToken.balanceOf(resolver1), initialResolverBalance + expectedTotalToResolver);
+        assertEq(usdCoinToken.balanceOf(resolver1), initialResolverBalance + expectedTotalToResolver);
 
         // Verify maker got some refund (difference between what they paid and what resolver got)
-        assertTrue(pyusdToken.balanceOf(maker1) > initialMakerBalance);
+        assertTrue(usdCoinToken.balanceOf(maker1) > initialMakerBalance);
     }
 
     function test_FulfillOrder_OnlyRelayer() public {
@@ -367,8 +367,8 @@ contract OrderProtocolTest is Test {
     //////////////////////////////////////////////
 
     function test_Integration_CompleteOrderLifecycle() public {
-        uint256 makerInitialBalance = pyusdToken.balanceOf(maker1);
-        uint256 resolverInitialBalance = pyusdToken.balanceOf(resolver1);
+        uint256 makerInitialBalance = usdCoinToken.balanceOf(maker1);
+        uint256 resolverInitialBalance = usdCoinToken.balanceOf(resolver1);
 
         // 1. Create order
         bytes32 orderId = _createBasicOrder(maker1);
@@ -390,11 +390,11 @@ contract OrderProtocolTest is Test {
         assertEq(orderProtocol.s_orderIdToProof(orderId), PAYMENT_PROOF);
 
         // Verify resolver received tokens
-        assertTrue(pyusdToken.balanceOf(resolver1) > resolverInitialBalance);
+        assertTrue(usdCoinToken.balanceOf(resolver1) > resolverInitialBalance);
 
         // Verify maker got some tokens back (price difference refund)
-        assertTrue(pyusdToken.balanceOf(maker1) > 0);
-        assertTrue(pyusdToken.balanceOf(maker1) < makerInitialBalance);
+        assertTrue(usdCoinToken.balanceOf(maker1) > 0);
+        assertTrue(usdCoinToken.balanceOf(maker1) < makerInitialBalance);
     }
 
     //////////////////////////////////////////////
@@ -434,7 +434,7 @@ contract OrderProtocolTest is Test {
 
         // Verify resolver was removed and slashed
         assertFalse(resolverRegistry.isResolver(resolver1));
-        assertEq(pyusdToken.balanceOf(slashRecipient), slashAmount);
+        assertEq(usdCoinToken.balanceOf(slashRecipient), slashAmount);
     }
 
     // Events for testing
