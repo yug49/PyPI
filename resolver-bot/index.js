@@ -40,6 +40,22 @@ class ResolverBot {
         this.callbackServer = null;
         this.callbackPort = process.env.RESOLVER_CALLBACK_PORT || 3001;
 
+        // Event listener management
+        this.eventListeners = new Map();
+        this.filterReconnectInterval = null;
+        this.filterCheckInterval = 60000; // Check filters every 60 seconds
+        this.lastEventBlock = 0;
+        this.isRecreatingListeners = false;
+
+        // Polling-based event monitoring as fallback
+        this.usePollingMode = true; // Enable polling mode by default to avoid filter issues
+        this.pollingInterval = null;
+        this.pollingIntervalTime = 15000; // Poll every 15 seconds (reduced frequency to avoid timeouts)
+
+        // Order processing tracking to prevent duplicates
+        this.processedOrders = new Set(); // Track order IDs that have been processed
+        this.processingOrders = new Set(); // Track order IDs currently being processed
+
         // RazorpayX credentials
         this.razorpayKeyId = process.env.RAZORPAYX_KEY_ID;
         this.razorpayKeySecret = process.env.RAZORPAYX_KEY_SECRET;
@@ -60,8 +76,16 @@ class ResolverBot {
             // Validate environment variables
             this.validateEnvironment();
 
-            // Set up blockchain connection
-            this.provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+            // Set up blockchain connection with improved timeout settings
+            this.provider = new ethers.JsonRpcProvider(
+                process.env.RPC_URL,
+                null,
+                {
+                    timeout: 15000, // 15 second timeout instead of default 30s
+                    throttleLimit: 1, // Limit concurrent requests
+                    throttleSlotInterval: 100, // Space out requests
+                }
+            );
             this.wallet = new ethers.Wallet(
                 process.env.PRIVATE_KEY,
                 this.provider
@@ -527,46 +551,41 @@ class ResolverBot {
     }
 
     /**
-     * Read order details from the contract
+     * Read order details from the contract with error handling
      * @param {string} orderId - The order ID to read
      * @returns {Object} Order details from the contract
      */
     async readOrderFromContract(orderId) {
-        try {
-            logger.info(`📖 Reading order ${orderId} from contract...`);
+        logger.info(`📖 Reading order ${orderId} from contract...`);
 
-            const order = await this.contract.getOrder(orderId);
+        const order = await this.executeWithFilterRecovery(
+            () => this.contract.getOrder(orderId),
+            `Reading order ${orderId}`
+        );
 
-            const orderDetails = {
-                maker: order.maker,
-                taker: order.taker,
-                recipientUpiAddress: order.recipientUpiAddress,
-                amount: order.amount.toString(), // Amount in INR (18 decimals)
-                startPrice: order.startPrice.toString(),
-                acceptedPrice: order.acceptedPrice.toString(),
-                endPrice: order.endPrice.toString(),
-                startTime: Number(order.startTime),
-                acceptedTime: Number(order.acceptedTime),
-                accepted: order.accepted,
-                fullfilled: order.fullfilled,
-            };
+        const orderDetails = {
+            maker: order.maker,
+            taker: order.taker,
+            recipientUpiAddress: order.recipientUpiAddress,
+            amount: order.amount.toString(), // Amount in INR (18 decimals)
+            startPrice: order.startPrice.toString(),
+            acceptedPrice: order.acceptedPrice.toString(),
+            endPrice: order.endPrice.toString(),
+            startTime: Number(order.startTime),
+            acceptedTime: Number(order.acceptedTime),
+            accepted: order.accepted,
+            fullfilled: order.fullfilled,
+        };
 
-            logger.info(`📋 Order details:`, {
-                orderId,
-                recipientUpi: orderDetails.recipientUpiAddress,
-                amountINR: ethers.formatEther(orderDetails.amount), // Convert to readable format
-                accepted: orderDetails.accepted,
-                taker: orderDetails.taker,
-            });
+        logger.info(`📋 Order details:`, {
+            orderId,
+            recipientUpi: orderDetails.recipientUpiAddress,
+            amountINR: ethers.formatEther(orderDetails.amount), // Convert to readable format
+            accepted: orderDetails.accepted,
+            taker: orderDetails.taker,
+        });
 
-            return orderDetails;
-        } catch (error) {
-            logger.error(
-                `Failed to read order ${orderId} from contract:`,
-                error
-            );
-            throw error;
-        }
+        return orderDetails;
     }
 
     /**
@@ -1081,13 +1100,34 @@ ${separator}
 
     async handleOrderCreated(orderId, maker, amount, event) {
         try {
+            // Check if we've already processed or are currently processing this order
+            if (this.processedOrders.has(orderId)) {
+                logger.info(
+                    `⏭️ Order ${orderId} already processed, skipping...`
+                );
+                return;
+            }
+
+            if (this.processingOrders.has(orderId)) {
+                logger.info(
+                    `🔄 Order ${orderId} currently being processed, skipping duplicate...`
+                );
+                return;
+            }
+
+            // Mark as currently processing
+            this.processingOrders.add(orderId);
+
             const startTime = Date.now();
             logger.info(
                 `🚨 New order detected! ID: ${orderId}, Maker: ${maker}, Amount: ${amount}`
             );
 
-            // Get order details
-            const order = await this.contract.getOrder(orderId);
+            // Get order details with filter recovery
+            const order = await this.executeWithFilterRecovery(
+                () => this.contract.getOrder(orderId),
+                `Getting order details for ${orderId}`
+            );
 
             logger.info(`Order details:`, {
                 maker: order.maker,
@@ -1123,9 +1163,26 @@ ${separator}
                 logger.info(
                     `🎉 Successfully accepted order ${orderId} in ${processingTime}ms`
                 );
+                // Mark as processed on success
+                this.processedOrders.add(orderId);
             }
         } catch (error) {
             logger.error(`Error handling OrderCreated event:`, error);
+
+            // If it's a filter error, try to recreate listeners
+            if (
+                error.message &&
+                error.message.includes("filter") &&
+                error.message.includes("does not exist")
+            ) {
+                logger.warn(
+                    "🔄 Recreating event listeners due to filter error in event handler..."
+                );
+                await this.recreateEventListeners();
+            }
+        } finally {
+            // Always remove from processing set
+            this.processingOrders.delete(orderId);
         }
     }
 
@@ -1138,34 +1195,737 @@ ${separator}
 
             logger.info("🎧 Starting to listen for OrderCreated events...");
 
-            // Listen for OrderCreated events
-            this.contract.on(
-                "OrderCreated",
-                async (orderId, maker, amount, event) => {
+            // Get current block number for starting point
+            this.lastEventBlock = await this.provider.getBlockNumber();
+            logger.info(
+                `📍 Starting event listening from block: ${this.lastEventBlock}`
+            );
+
+            if (this.usePollingMode) {
+                logger.info(
+                    "🔄 Using polling mode for event monitoring (more reliable)"
+                );
+                await this.startPollingMode();
+            } else {
+                logger.info("🎯 Using filter-based event listening");
+                // Setup robust event listeners with error handling
+                await this.setupEventListeners();
+                // Start periodic filter health check
+                this.startFilterHealthCheck();
+            }
+
+            this.isListening = true;
+            logger.info(
+                "✅ Bot is now actively listening for events with robust management"
+            );
+        } catch (error) {
+            logger.error("Failed to start listening:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start polling-based event monitoring (alternative to filters)
+     */
+    async startPollingMode() {
+        logger.info(
+            `🔄 Starting polling mode (every ${
+                this.pollingIntervalTime / 1000
+            }s)`
+        );
+
+        this.pollingInterval = setInterval(async () => {
+            try {
+                await this.pollForNewEvents();
+            } catch (error) {
+                logger.error("Error during event polling:", error);
+
+                // Handle timeout errors specially
+                if (
+                    error.code === "TIMEOUT" ||
+                    error.message.includes("timeout")
+                ) {
+                    logger.warn(
+                        "⏰ RPC timeout detected, continuing with next poll cycle..."
+                    );
+
+                    // Check if we have any pending accepted orders that need payment processing
+                    await this.checkPendingPayments();
+
+                    return; // Continue with next poll, don't try to recover
+                }
+
+                // If polling fails, try to recover
+                if (this.isEthersFilterError(error)) {
+                    logger.warn(
+                        "🔄 Ethers error during polling, attempting recovery..."
+                    );
+                    await this.handleEthersFilterError(error);
+                }
+            }
+        }, this.pollingIntervalTime);
+
+        logger.info("✅ Polling mode started successfully");
+    }
+
+    /**
+     * Poll for new events by checking recent blocks
+     */
+    async pollForNewEvents() {
+        try {
+            const currentBlock = await this.provider.getBlockNumber();
+
+            // If we're caught up, no need to check
+            if (currentBlock <= this.lastEventBlock) {
+                logger.debug(
+                    `📍 Already up to date. Current: ${currentBlock}, Last: ${this.lastEventBlock}`
+                );
+                return;
+            }
+
+            // Calculate block range to check (limit to prevent too many requests)
+            const fromBlock = this.lastEventBlock + 1;
+            const toBlock = Math.min(currentBlock, this.lastEventBlock + 100); // Check max 100 blocks at a time
+
+            logger.debug(
+                `🔍 Polling blocks ${fromBlock} to ${toBlock} for events`
+            );
+
+            // Get OrderCreated events from the block range
+            const orderCreatedFilter = this.contract.filters.OrderCreated();
+            const orderCreatedEvents = await this.contract.queryFilter(
+                orderCreatedFilter,
+                fromBlock,
+                toBlock
+            );
+
+            // Get OrderAccepted events from the block range
+            const orderAcceptedFilter = this.contract.filters.OrderAccepted();
+            const orderAcceptedEvents = await this.contract.queryFilter(
+                orderAcceptedFilter,
+                fromBlock,
+                toBlock
+            );
+
+            // Process OrderCreated events
+            for (const event of orderCreatedEvents) {
+                logger.info(
+                    `📢 Found OrderCreated event in block ${event.blockNumber}`
+                );
+                const [orderId, maker, amount] = event.args;
+                await this.handleOrderCreated(orderId, maker, amount, event);
+            }
+
+            // Process OrderAccepted events
+            for (const event of orderAcceptedEvents) {
+                logger.info(
+                    `📢 Found OrderAccepted event in block ${event.blockNumber}`
+                );
+                const [orderId, taker, acceptedPrice] = event.args;
+                logger.info(
+                    `📋 Order ${orderId} accepted by ${taker} at price ${acceptedPrice}`
+                );
+            }
+
+            // Update last processed block
+            this.lastEventBlock = toBlock;
+
+            if (
+                orderCreatedEvents.length > 0 ||
+                orderAcceptedEvents.length > 0
+            ) {
+                logger.info(
+                    `✅ Processed ${orderCreatedEvents.length} OrderCreated and ${orderAcceptedEvents.length} OrderAccepted events`
+                );
+            }
+        } catch (error) {
+            logger.error("Error polling for events:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check for accepted orders that haven't been processed for payments yet
+     */
+    async checkPendingPayments() {
+        try {
+            logger.debug("🔍 Checking for pending payment processing...");
+
+            // Get processed orders that might need payment processing
+            for (const orderId of this.processedOrders) {
+                try {
+                    // Check if order is accepted but not yet fulfilled
+                    const orderDetails = await this.executeWithFilterRecovery(
+                        () => this.contract.getOrder(orderId),
+                        `Checking order ${orderId} for payment processing`
+                    );
+
+                    if (
+                        orderDetails.accepted &&
+                        !orderDetails.fullfilled &&
+                        orderDetails.taker === this.wallet.address
+                    ) {
+                        logger.info(
+                            `💰 Found accepted order ${orderId} pending payment processing`
+                        );
+
+                        // Trigger payment processing
+                        setTimeout(async () => {
+                            try {
+                                await this.processPayment(orderId);
+                            } catch (error) {
+                                logger.error(
+                                    `Failed to process payment for pending order ${orderId}:`,
+                                    error
+                                );
+                            }
+                        }, 1000); // Small delay to avoid overwhelming the system
+
+                        break; // Process one at a time to avoid overwhelming
+                    }
+                } catch (error) {
+                    logger.debug(
+                        `Could not check order ${orderId}:`,
+                        error.message
+                    );
+                }
+            }
+        } catch (error) {
+            logger.debug("Error checking pending payments:", error.message);
+        }
+    }
+
+    /**
+     * Switch to filter mode if polling is having issues
+     */
+    async switchToFilterMode() {
+        if (!this.usePollingMode) {
+            logger.warn("Already in filter mode");
+            return;
+        }
+
+        logger.info("🔄 Switching from polling to filter mode...");
+
+        // Stop polling
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+
+        this.usePollingMode = false;
+
+        // Start filter-based listening
+        await this.setupEventListeners();
+        this.startFilterHealthCheck();
+
+        logger.info("✅ Switched to filter mode successfully");
+    }
+
+    /**
+     * Switch to polling mode if filters are having issues
+     */
+    async switchToPollingMode() {
+        if (this.usePollingMode) {
+            logger.warn("Already in polling mode");
+            return;
+        }
+
+        logger.info("🔄 Switching from filter to polling mode...");
+
+        // Stop filters
+        if (this.filterReconnectInterval) {
+            clearInterval(this.filterReconnectInterval);
+            this.filterReconnectInterval = null;
+        }
+
+        this.contract.removeAllListeners();
+        this.provider.removeAllListeners();
+        this.eventListeners.clear();
+
+        this.usePollingMode = true;
+
+        // Start polling
+        await this.startPollingMode();
+
+        logger.info("✅ Switched to polling mode successfully");
+    }
+
+    /**
+     * Setup event listeners with proper error handling and recovery
+     */
+    async setupEventListeners() {
+        try {
+            // Remove existing listeners first
+            this.contract.removeAllListeners();
+            this.provider.removeAllListeners();
+
+            // Create OrderCreated event listener with error handling
+            const orderCreatedListener = async (
+                orderId,
+                maker,
+                amount,
+                event
+            ) => {
+                try {
+                    this.lastEventBlock = Math.max(
+                        this.lastEventBlock,
+                        event.blockNumber
+                    );
                     await this.handleOrderCreated(
                         orderId,
                         maker,
                         amount,
                         event
                     );
+                } catch (error) {
+                    logger.error(`Error in OrderCreated event handler:`, error);
+                    // Check if it's an ethers filter issue and recreate listeners
+                    if (this.isEthersFilterError(error)) {
+                        await this.handleEthersFilterError(error);
+                    }
                 }
-            );
+            };
 
-            // Listen for other relevant events for monitoring
-            this.contract.on(
-                "OrderAccepted",
-                (orderId, taker, acceptedPrice, event) => {
+            // Create OrderAccepted event listener with error handling
+            const orderAcceptedListener = (
+                orderId,
+                taker,
+                acceptedPrice,
+                event
+            ) => {
+                try {
+                    this.lastEventBlock = Math.max(
+                        this.lastEventBlock,
+                        event.blockNumber
+                    );
                     logger.info(
                         `📋 Order ${orderId} accepted by ${taker} at price ${acceptedPrice}`
                     );
+                } catch (error) {
+                    logger.error(
+                        `Error in OrderAccepted event handler:`,
+                        error
+                    );
+                    // Check if it's an ethers filter issue and recreate listeners
+                    if (this.isEthersFilterError(error)) {
+                        this.handleEthersFilterError(error);
+                    }
                 }
+            };
+
+            // Setup listeners with comprehensive error handling
+            this.contract.on("OrderCreated", orderCreatedListener);
+            this.contract.on("OrderAccepted", orderAcceptedListener);
+
+            // Store listener references for management
+            this.eventListeners.set("OrderCreated", orderCreatedListener);
+            this.eventListeners.set("OrderAccepted", orderAcceptedListener);
+
+            // Handle provider errors with enhanced detection
+            this.provider.on("error", (error) => {
+                logger.error("Provider error detected:", error);
+                this.handleProviderError(error);
+            });
+
+            // Add additional error handling for ethers.js internal errors
+            this.setupEthersErrorHandling();
+
+            logger.info(
+                "🔗 Event listeners setup completed with enhanced error handling"
+            );
+        } catch (error) {
+            logger.error("Failed to setup event listeners:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check if error is an ethers.js filter-related issue
+     */
+    isEthersFilterError(error) {
+        const errorMessage = error.message || error.toString();
+        return (
+            errorMessage.includes("results is not iterable") ||
+            (errorMessage.includes("filter") &&
+                errorMessage.includes("does not exist")) ||
+            errorMessage.includes("FilterIdEventSubscriber") ||
+            errorMessage.includes("_emitResults")
+        );
+    }
+
+    /**
+     * Setup additional error handling for ethers.js internal issues
+     */
+    setupEthersErrorHandling() {
+        // Wrap the provider's internal error handling
+        const originalSend = this.provider.send.bind(this.provider);
+
+        this.provider.send = async (method, params) => {
+            try {
+                const result = await originalSend(method, params);
+
+                // For filter-related methods, ensure result is always iterable
+                if (
+                    method === "eth_getFilterChanges" ||
+                    method === "eth_getFilterLogs"
+                ) {
+                    // If result is null, undefined, or not an array, return empty array
+                    if (!result || !Array.isArray(result)) {
+                        logger.debug(
+                            `🔧 Normalizing non-array result for ${method}: ${typeof result}`
+                        );
+                        return [];
+                    }
+                }
+
+                return result;
+            } catch (error) {
+                // Handle ethers filter errors at the RPC level
+                if (this.isEthersFilterError(error)) {
+                    logger.warn(
+                        `🔄 Ethers RPC filter error detected: ${error.message}`
+                    );
+                    await this.handleEthersFilterError(error);
+
+                    // For filter-related RPC calls, return empty result to prevent crashes
+                    if (
+                        method === "eth_getFilterChanges" ||
+                        method === "eth_getFilterLogs"
+                    ) {
+                        logger.info(
+                            "🔄 Returning empty result for expired filter call"
+                        );
+                        return [];
+                    }
+                }
+                throw error;
+            }
+        };
+
+        // Additional monkey-patch for the problematic ethers internal method
+        this.patchFilterIdEventSubscriber();
+
+        logger.info("🛡️ Enhanced ethers.js error handling configured");
+    }
+
+    /**
+     * Monkey-patch the problematic FilterIdEventSubscriber._emitResults method
+     */
+    patchFilterIdEventSubscriber() {
+        try {
+            // Try to find and patch the FilterIdEventSubscriber class
+            const ethersModule = require("ethers");
+
+            // This is a more aggressive approach - patch the prototype if accessible
+            const ethersPath = require.resolve("ethers");
+            const filterIdPath = ethersPath.replace(
+                "lib.commonjs/ethers.js",
+                "lib.commonjs/providers/subscriber-filterid.js"
             );
 
-            this.isListening = true;
-            logger.info("✅ Bot is now actively listening for events");
+            // Instead of patching directly, let's intercept at the process level
+            const originalEmit = process.emit.bind(process);
+
+            process.emit = function (event, ...args) {
+                if (event === "uncaughtException") {
+                    const error = args[0];
+                    if (
+                        error &&
+                        error.message &&
+                        error.message.includes("results is not iterable")
+                    ) {
+                        logger.warn(
+                            "🔄 Caught ethers FilterIdEventSubscriber error, suppressing crash"
+                        );
+                        // Don't emit the uncaught exception, just log it
+                        return false;
+                    }
+                }
+                return originalEmit(event, ...args);
+            };
+
+            logger.info(
+                "🛡️ Process-level error interception configured for ethers errors"
+            );
         } catch (error) {
-            logger.error("Failed to start listening:", error);
-            throw error;
+            logger.warn(
+                "Could not patch FilterIdEventSubscriber, using fallback protection:",
+                error.message
+            );
+        }
+    }
+
+    /**
+     * Handle ethers.js specific filter errors
+     */
+    async handleEthersFilterError(error) {
+        logger.warn(`🔄 Handling ethers.js filter error: ${error.message}`);
+
+        // If we're using polling mode, just log and continue
+        if (this.usePollingMode) {
+            logger.info(
+                "🔄 In polling mode, filter error should not affect operation"
+            );
+            return;
+        }
+
+        // Prevent recursive recreation
+        if (this.isRecreatingListeners) {
+            logger.info("🔄 Already recreating listeners, skipping...");
+            return;
+        }
+
+        try {
+            this.isRecreatingListeners = true;
+
+            // Track filter error count
+            if (!this.filterErrorCount) {
+                this.filterErrorCount = 0;
+            }
+            this.filterErrorCount++;
+
+            // If we've had too many filter errors, switch to polling mode
+            if (this.filterErrorCount >= 3) {
+                logger.warn(
+                    `⚠️ Too many filter errors (${this.filterErrorCount}), switching to polling mode for reliability`
+                );
+                await this.switchToPollingMode();
+                this.filterErrorCount = 0; // Reset counter
+                return;
+            }
+
+            // Wait a moment for any pending operations to complete
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Recreate listeners
+            await this.recreateEventListeners();
+        } finally {
+            this.isRecreatingListeners = false;
+        }
+    }
+
+    /**
+     * Handle provider errors and attempt recovery
+     */
+    async handleProviderError(error) {
+        logger.warn("🚨 Handling provider error, attempting recovery...");
+
+        // Check if it's any type of filter-related error (including ethers.js internal errors)
+        if (this.isEthersFilterError(error)) {
+            logger.info(
+                "🔄 Filter/ethers error detected, recreating event listeners..."
+            );
+            await this.handleEthersFilterError(error);
+        } else {
+            logger.error("❌ Non-filter provider error:", error);
+
+            // For severe provider errors, attempt a provider reconnection
+            if (
+                error.message &&
+                (error.message.includes("connection") ||
+                    error.message.includes("network"))
+            ) {
+                logger.warn(
+                    "🔌 Network error detected, attempting provider reconnection..."
+                );
+                await this.reconnectProvider();
+            }
+        }
+    }
+
+    /**
+     * Attempt to reconnect the provider
+     */
+    async reconnectProvider() {
+        try {
+            logger.info("� Reconnecting to RPC provider...");
+
+            // Create a new provider instance
+            this.provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+            this.wallet = new ethers.Wallet(
+                process.env.PRIVATE_KEY,
+                this.provider
+            );
+
+            // Recreate contract instance with new provider
+            const abiPath = path.join(__dirname, "abi", "OrderProtocol.json");
+            const contractABI = JSON.parse(fs.readFileSync(abiPath, "utf8"));
+            this.contract = new ethers.Contract(
+                process.env.CONTRACT_ADDRESS,
+                contractABI,
+                this.wallet
+            );
+
+            // Test the new connection
+            await this.provider.getBlockNumber();
+
+            // Recreate event listeners
+            await this.recreateEventListeners();
+
+            logger.info("✅ Provider reconnection successful");
+        } catch (error) {
+            logger.error("❌ Provider reconnection failed:", error);
+
+            // Schedule retry after delay
+            setTimeout(() => {
+                logger.info("⏰ Retrying provider reconnection...");
+                this.reconnectProvider();
+            }, 10000);
+        }
+    }
+
+    /**
+     * Recreate event listeners after filter expiration
+     */
+    async recreateEventListeners() {
+        try {
+            logger.info("🔄 Recreating event listeners...");
+
+            // Remove all existing listeners and clear internal state
+            try {
+                this.contract.removeAllListeners();
+                this.provider.removeAllListeners();
+            } catch (cleanupError) {
+                logger.warn(
+                    "⚠️ Error during listener cleanup (continuing):",
+                    cleanupError.message
+                );
+            }
+
+            this.eventListeners.clear();
+
+            // Wait longer for ethers internal cleanup
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+
+            // Get fresh block number for new listeners
+            try {
+                this.lastEventBlock = await this.provider.getBlockNumber();
+                logger.info(
+                    `📍 Reset event listening from block: ${this.lastEventBlock}`
+                );
+            } catch (blockError) {
+                logger.warn(
+                    "⚠️ Could not get current block, using previous value"
+                );
+            }
+
+            // Setup listeners again
+            await this.setupEventListeners();
+
+            logger.info("✅ Event listeners recreated successfully");
+        } catch (error) {
+            logger.error("Failed to recreate event listeners:", error);
+
+            // For ethers errors, try a more aggressive reset
+            if (this.isEthersFilterError(error)) {
+                logger.warn(
+                    "🔄 Ethers error during recreation, attempting provider reset..."
+                );
+                setTimeout(() => {
+                    this.reconnectProvider();
+                }, 5000);
+            } else {
+                // Schedule normal retry after a delay
+                setTimeout(() => {
+                    logger.info("⏰ Retrying event listener recreation...");
+                    this.recreateEventListeners();
+                }, 5000);
+            }
+        }
+    }
+
+    /**
+     * Start periodic health check for filters
+     */
+    startFilterHealthCheck() {
+        if (this.filterReconnectInterval) {
+            clearInterval(this.filterReconnectInterval);
+        }
+
+        this.filterReconnectInterval = setInterval(async () => {
+            try {
+                logger.debug("🔍 Performing filter health check...");
+
+                // Try to get the latest block - this will fail if provider connection is bad
+                const currentBlock = await this.provider.getBlockNumber();
+
+                // Check if we've missed any blocks (could indicate filter issues)
+                const blockDiff = currentBlock - this.lastEventBlock;
+                if (blockDiff > 50) {
+                    // If we're behind by more than 50 blocks
+                    logger.warn(
+                        `⚠️ Potential missed events, blocks behind: ${blockDiff}`
+                    );
+                    logger.info("🔄 Proactively recreating listeners...");
+                    await this.recreateEventListeners();
+                }
+
+                logger.debug(
+                    `✅ Filter health check passed. Current block: ${currentBlock}, Last event block: ${this.lastEventBlock}`
+                );
+            } catch (error) {
+                logger.error("❌ Filter health check failed:", error.message);
+
+                // If health check fails, recreate listeners
+                if (
+                    error.message.includes("filter") ||
+                    error.message.includes("connection")
+                ) {
+                    await this.recreateEventListeners();
+                }
+            }
+        }, this.filterCheckInterval);
+
+        logger.info(
+            `⏰ Filter health check started (every ${
+                this.filterCheckInterval / 1000
+            }s)`
+        );
+    }
+
+    /**
+     * Execute contract call with automatic filter error recovery
+     * @param {Function} contractCall - The contract method to execute
+     * @param {string} operationName - Name of the operation for logging
+     * @param {number} maxRetries - Maximum number of retry attempts
+     */
+    async executeWithFilterRecovery(
+        contractCall,
+        operationName,
+        maxRetries = 2
+    ) {
+        let attempt = 0;
+
+        while (attempt <= maxRetries) {
+            try {
+                return await contractCall();
+            } catch (error) {
+                attempt++;
+
+                // Check if it's any type of ethers filter error
+                if (this.isEthersFilterError(error)) {
+                    logger.warn(
+                        `🔄 Ethers filter error in ${operationName} (attempt ${attempt}/${
+                            maxRetries + 1
+                        }), handling recovery...`
+                    );
+
+                    if (attempt <= maxRetries) {
+                        await this.handleEthersFilterError(error);
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 2000)
+                        ); // Wait 2 seconds before retry
+                        continue;
+                    }
+                }
+
+                // If it's not a filter error or we've exhausted retries, throw the error
+                logger.error(
+                    `❌ ${operationName} failed after ${attempt} attempts:`,
+                    error
+                );
+                throw error;
+            }
         }
     }
 
@@ -1178,8 +1938,24 @@ ${separator}
 
             logger.info("🛑 Stopping event listener...");
 
+            // Stop polling if active
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+                this.pollingInterval = null;
+                logger.info("🔄 Polling mode stopped");
+            }
+
+            // Stop filter health check
+            if (this.filterReconnectInterval) {
+                clearInterval(this.filterReconnectInterval);
+                this.filterReconnectInterval = null;
+                logger.info("⏰ Filter health check stopped");
+            }
+
             // Remove all listeners
             this.contract.removeAllListeners();
+            this.provider.removeAllListeners();
+            this.eventListeners.clear();
             this.isListening = false;
 
             // Close callback server
@@ -1251,7 +2027,30 @@ ${separator}
                 orderId,
                 transactionId,
                 error: error.message,
+                status: error.response?.status,
+                responseData: error.response?.data,
+                service: "resolver-bot",
+                timestamp: new Date().toISOString(),
             });
+
+            // Log specific guidance based on error type
+            if (error.response?.status === 400) {
+                this.logger.error("💡 Possible causes for 400 error:");
+                this.logger.error(
+                    "   1. RazorpayX transaction verification failed"
+                );
+                this.logger.error(
+                    "   2. Transaction validation (amount/status mismatch)"
+                );
+                this.logger.error(
+                    "   3. Order not properly accepted on blockchain"
+                );
+                this.logger.error("   4. Missing or invalid transaction ID");
+                this.logger.error(
+                    `   🔗 Transaction ID being verified: ${transactionId}`
+                );
+            }
+
             return false;
         }
     }
@@ -1280,7 +2079,22 @@ ${separator}
             // Keep the process alive
             process.on("uncaughtException", (error) => {
                 logger.error("Uncaught Exception:", error);
-                process.exit(1);
+
+                // If it's any ethers filter error, try to recover instead of exiting
+                if (this.isEthersFilterError(error)) {
+                    logger.warn(
+                        "🔄 Ethers filter-related uncaught exception, attempting recovery..."
+                    );
+                    this.handleEthersFilterError(error).catch((err) => {
+                        logger.error(
+                            "Failed to recover from filter exception:",
+                            err
+                        );
+                        process.exit(1);
+                    });
+                } else {
+                    process.exit(1);
+                }
             });
 
             process.on("unhandledRejection", (reason, promise) => {
@@ -1290,6 +2104,19 @@ ${separator}
                     "reason:",
                     reason
                 );
+
+                // If it's any ethers filter error, try to recover instead of crashing
+                if (reason && this.isEthersFilterError(reason)) {
+                    logger.warn(
+                        "🔄 Ethers filter-related unhandled rejection, attempting recovery..."
+                    );
+                    this.handleEthersFilterError(reason).catch((err) => {
+                        logger.error(
+                            "Failed to recover from filter rejection:",
+                            err
+                        );
+                    });
+                }
             });
         } catch (error) {
             logger.error("Failed to start Resolver Bot:", error);

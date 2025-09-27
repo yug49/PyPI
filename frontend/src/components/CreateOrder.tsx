@@ -54,7 +54,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
     recipientUpiAddress: searchParams.get('upiAddress') || ''
   })
   
-  // Fixed token since only PYUSD is supported
+  // Fixed token since only MockUSDC is supported
   const selectedToken = COMMON_TOKENS[0]
   
   // Token operations
@@ -72,6 +72,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   const [txHash, setTxHash] = useState<string>('')
   const [orderId, setOrderId] = useState<string>('')
   const [fulfillmentProof, setFulfillmentProof] = useState<string>('')
+  const [statusMessage, setStatusMessage] = useState<string>('')
 
   // For initial testing, use full wallet balance as approval amount
   const approvalAmount = useMemo(() => {
@@ -251,12 +252,21 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
         transactionHash: receipt.transactionHash,
         blockNumber: Number(receipt.blockNumber)
       })
-      .then(() => {
+      .then((result) => {
         setOrderId(actualOrderId)
         setStep('success')
         
         console.log('🎯 Order ID set for event listening:', actualOrderId)
         console.log('📡 Event listener should now be active for this order ID')
+        
+        // Show appropriate message based on whether order was new or already existed
+        if (result.wasExisting) {
+          console.log('ℹ️ Order was already processed by resolver bot, but blockchain transaction was successful')
+          setStatusMessage('Order created successfully! (Already being processed by resolver bot)')
+        } else {
+          console.log('✅ Order saved to database successfully')
+          setStatusMessage('Order created successfully!')
+        }
         
         if (onOrderCreated) {
           onOrderCreated(actualOrderId)
@@ -264,7 +274,17 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
       })
       .catch((error) => {
         console.error('Failed to save order to database:', error)
-        setStep('form')
+        
+        // Still proceed to success if the blockchain transaction was successful
+        // The user's order was created on-chain even if database save failed
+        console.log('⚠️ Proceeding to success despite database error - order exists on blockchain')
+        setOrderId(actualOrderId)
+        setStep('success')
+        setStatusMessage('Order created successfully on blockchain! (Database sync in progress)')
+        
+        if (onOrderCreated) {
+          onOrderCreated(actualOrderId)
+        }
       })
     }
   }, [isReceiptSuccess, receipt, step, address, formData, saveOrderToDatabase, onOrderCreated])
@@ -341,7 +361,12 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             </svg>
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Processing Payment...</h3>
-          <p className="text-gray-600 mb-4">Your order has been created and is waiting for a resolver to accept and process the payment.</p>
+          <p className="text-gray-600 mb-2">Your order has been created and is waiting for a resolver to accept and process the payment.</p>
+          {statusMessage && (
+            <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg p-2 mb-4">
+              {statusMessage}
+            </p>
+          )}
           
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
             <p className="text-sm text-gray-600">Order ID:</p>

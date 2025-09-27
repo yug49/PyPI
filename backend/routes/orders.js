@@ -544,18 +544,35 @@ router.post("/:orderId/accept", async (req, res) => {
         try {
             console.log(`📋 Reading order ${orderId} from blockchain...`);
 
-            const { createPublicClient, http } = require("viem");
-            const { worldchainSepolia } = require("viem/chains");
+            const { createPublicClient, http, defineChain } = require("viem");
+
+            // Define Flow EVM Testnet chain
+            const flowEvmTestnet = defineChain({
+                id: 545,
+                name: "Flow EVM Testnet",
+                nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
+                rpcUrls: {
+                    default: {
+                        http: ["https://testnet.evm.nodes.onflow.org"],
+                    },
+                },
+                blockExplorers: {
+                    default: {
+                        name: "Flow EVM Explorer",
+                        url: "https://evm-testnet.flowscan.io",
+                    },
+                },
+                testnet: true,
+            });
 
             const rpcUrl =
-                process.env.RPC_URL ||
-                "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
+                process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
             const contractAddress =
                 process.env.CONTRACT_ADDRESS ||
-                "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+                "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
 
             const publicClient = createPublicClient({
-                chain: worldchainSepolia,
+                chain: flowEvmTestnet,
                 transport: http(rpcUrl),
             });
 
@@ -591,11 +608,6 @@ router.post("/:orderId/accept", async (req, res) => {
                                     internalType: "uint256",
                                     name: "amount",
                                     type: "uint256",
-                                },
-                                {
-                                    internalType: "address",
-                                    name: "token",
-                                    type: "address",
                                 },
                                 {
                                     internalType: "uint256",
@@ -697,11 +709,10 @@ router.post("/:orderId/accept", async (req, res) => {
                     blockchainOrder.amount?.toString() || "undefined"
                 }`
             );
-            console.log(`   Token: ${blockchainOrder.token}`);
             console.log(`   Start Price: ${orderStartPrice.toString()}`);
             console.log(`   End Price: ${orderEndPrice.toString()}`);
             console.log(`   Accepted: ${blockchainOrder.accepted}`);
-            console.log(`   Fulfilled: ${blockchainOrder.fulfilled}`);
+            console.log(`   Fulfilled: ${blockchainOrder.fullfilled}`);
 
             console.log(`🔍 Price validation:`);
             console.log(
@@ -741,32 +752,48 @@ router.post("/:orderId/accept", async (req, res) => {
 
         // Set up blockchain connection with relayer's private key using viem
         const rpcUrl =
-            process.env.RPC_URL ||
-            "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
+            process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
         const relayerPrivateKey =
             process.env.RELAYER_PRIVATE_KEY ||
             "6c1db0c528e7cac4202419249bc98d3df647076707410041e32f6e9080906bfb";
         const contractAddress =
             process.env.CONTRACT_ADDRESS ||
-            "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+            "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
 
         // Create account from private key
         const account = privateKeyToAccount(`0x${relayerPrivateKey}`);
 
+        // Define Flow EVM Testnet chain
+        const flowEvmTestnet = {
+            id: 545,
+            name: "Flow EVM Testnet",
+            nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
+            rpcUrls: {
+                default: { http: [rpcUrl] },
+            },
+            blockExplorers: {
+                default: {
+                    name: "Flow EVM Explorer",
+                    url: "https://evm-testnet.flowscan.io",
+                },
+            },
+            testnet: true,
+        };
+
         // Create public client for reading blockchain data
         const publicClient = createPublicClient({
-            chain: worldchainSepolia,
+            chain: flowEvmTestnet,
             transport: http(rpcUrl),
         });
 
         // Create wallet client for sending transactions
         const walletClient = createWalletClient({
             account,
-            chain: worldchainSepolia,
+            chain: flowEvmTestnet,
             transport: http(rpcUrl),
         });
 
-        // OrderProtocol contract ABI (minimal - just the acceptOrder function)
+        // OrderProtocol contract ABI (acceptOrder function + error definitions)
         const contractABI = [
             {
                 inputs: [
@@ -790,6 +817,62 @@ router.post("/:orderId/accept", async (req, res) => {
                 outputs: [],
                 stateMutability: "nonpayable",
                 type: "function",
+            },
+            // Error definitions for proper error decoding
+            {
+                inputs: [],
+                name: "OrderProtocol__InvalidAmount",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__InvalidPrice",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__NotAResolver",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__NotRelayer",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__AlreadyAccepted",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__OrderDoesNotExists",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__OrderNotAcceptedYet",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__AlreadyFullfilled",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__MaxFullfillmentTimeReached",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__NotAMaker",
+                type: "error",
+            },
+            {
+                inputs: [],
+                name: "OrderProtocol__InvalidToken",
+                type: "error",
             },
         ];
 
@@ -1081,28 +1164,82 @@ router.post("/:orderId/fulfill", async (req, res) => {
             });
         }
 
-        // Step 2: Verify transaction with RazorpayX
-        const transactionDetails = await verifyRazorpayXTransaction(
-            transactionId
+        // Step 2: Verify transaction with RazorpayX (with retry for timing issues)
+        console.log(
+            `🔍 Verifying transaction with RazorpayX: ${transactionId}`
         );
+
+        // Calculate expected amount from order details for development mode
+        const orderAmountWei = BigInt(orderDetails.amount);
+        const orderAmountETH = Number(orderAmountWei) / 1e18;
+        const expectedAmountINR = Math.floor(orderAmountETH);
+        const expectedAmountPaise = expectedAmountINR * 100;
+
+        let transactionDetails = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (!transactionDetails && retryCount < maxRetries) {
+            if (retryCount > 0) {
+                console.log(
+                    `🔄 Retry attempt ${retryCount} for transaction verification...`
+                );
+                await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
+            }
+
+            transactionDetails = await verifyRazorpayXTransaction(
+                transactionId,
+                expectedAmountPaise
+            );
+            retryCount++;
+        }
+
         if (!transactionDetails) {
+            console.error(
+                `❌ Transaction verification failed after ${maxRetries} attempts: ${transactionId}`
+            );
             return res.status(400).json({
                 error: "Transaction verification failed",
-                message: "Could not verify transaction with RazorpayX",
+                message: `Could not verify transaction with RazorpayX after ${maxRetries} attempts. Transaction ID: ${transactionId} may not exist or API call failed.`,
+                transactionId: transactionId,
+                retryAttempts: maxRetries,
+                expectedAmountPaise: expectedAmountPaise,
             });
         }
 
+        console.log(`✅ Transaction verified after ${retryCount} attempt(s):`, {
+            id: transactionDetails.id,
+            status: transactionDetails.status,
+            amount: transactionDetails.amount,
+            expectedAmount: expectedAmountPaise,
+        });
+
         // Step 3: Validate transaction details
+        console.log(`🔍 Validating transaction details...`);
         const validation = validateTransaction(
             orderDetails,
             transactionDetails
         );
         if (!validation.valid) {
+            console.error(
+                `❌ Transaction validation failed: ${validation.reason}`
+            );
             return res.status(400).json({
                 error: "Transaction validation failed",
                 message: validation.reason,
+                transactionId: transactionId,
+                orderDetails: {
+                    amount: orderDetails.amount.toString(),
+                    recipientUpi: orderDetails.recipientUpiAddress,
+                },
+                transactionDetails: {
+                    amount: transactionDetails.amount,
+                    status: transactionDetails.status,
+                },
             });
         }
+
+        console.log(`✅ Transaction validation passed`);
 
         // Step 4: Call fulfillOrder on smart contract
         const fulfillmentResult = await fulfillOrderOnContract(
@@ -1170,7 +1307,7 @@ async function getOrderFromContract(orderId) {
                 blockExplorers: {
                     default: {
                         name: "Explorer",
-                        url: "https://worldchain-sepolia.explorer.alchemy.com",
+                        url: "https://testnet.evm.nodes.onflow.org",
                     },
                 },
             },
@@ -1210,11 +1347,6 @@ async function getOrderFromContract(orderId) {
                                 internalType: "uint256",
                                 name: "amount",
                                 type: "uint256",
-                            },
-                            {
-                                internalType: "address",
-                                name: "token",
-                                type: "address",
                             },
                             {
                                 internalType: "uint256",
@@ -1297,8 +1429,42 @@ async function getOrderFromContract(orderId) {
 /**
  * Verify transaction with RazorpayX API
  */
-async function verifyRazorpayXTransaction(payoutId) {
+async function verifyRazorpayXTransaction(
+    payoutId,
+    expectedAmountPaise = null
+) {
     try {
+        // Development mode: Skip actual RazorpayX verification for testing
+        if (
+            process.env.NODE_ENV === "development" &&
+            process.env.SKIP_RAZORPAY_VERIFICATION === "true"
+        ) {
+            console.log(
+                `🚧 Development mode: Skipping RazorpayX verification for ${payoutId}`
+            );
+
+            // Use the expected amount from order calculation if provided
+            const mockAmount = expectedAmountPaise || 5000; // Use calculated amount or default ₹50
+
+            console.log(
+                `🔍 Development mode: Returning mock payout data with amount ${mockAmount} paise (calculated from order)`
+            );
+            return {
+                id: payoutId,
+                status: "processed",
+                amount: mockAmount,
+                currency: "INR",
+                created_at: Date.now(),
+                mode: "UPI",
+                purpose: "payout",
+            };
+        }
+
+        console.log(`🔍 Making RazorpayX API call for payout: ${payoutId}`);
+        console.log(
+            `🔗 API URL: https://api.razorpay.com/v1/payouts/${payoutId}`
+        );
+
         const response = await axios.get(
             `https://api.razorpay.com/v1/payouts/${payoutId}`,
             {
@@ -1310,9 +1476,29 @@ async function verifyRazorpayXTransaction(payoutId) {
             }
         );
 
+        console.log(`✅ RazorpayX API response:`, response.data);
         return response.data;
     } catch (error) {
-        console.error("Error verifying RazorpayX payout:", error);
+        console.error(`❌ Error verifying RazorpayX payout ${payoutId}:`, {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            url: `https://api.razorpay.com/v1/payouts/${payoutId}`,
+        });
+
+        // Log specific error details for debugging
+        if (error.response?.status === 404) {
+            console.error(
+                `❌ Payout not found: ${payoutId} does not exist in RazorpayX`
+            );
+        } else if (error.response?.status === 401) {
+            console.error(
+                `❌ Authentication failed: Check RAZORPAYX_KEY_ID and RAZORPAYX_KEY_SECRET`
+            );
+        } else if (error.code === "ENOTFOUND") {
+            console.error(`❌ Network error: Unable to reach RazorpayX API`);
+        }
+
         return null;
     }
 }
@@ -1381,20 +1567,20 @@ async function fulfillOrderOnContract(orderId, proof) {
         const contractAddress = process.env.CONTRACT_ADDRESS;
         const relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY;
 
-        // Chain configuration (copy from existing code)
-        const worldchainSepolia = {
-            id: 4801,
-            name: "Worldchain Sepolia",
-            network: "worldchain-sepolia",
-            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+        // Chain configuration for Flow EVM Testnet
+        const flowEvmTestnet = {
+            id: 545,
+            name: "Flow EVM Testnet",
+            network: "flow-evm-testnet",
+            nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
             rpcUrls: {
                 default: { http: [rpcUrl] },
                 public: { http: [rpcUrl] },
             },
             blockExplorers: {
                 default: {
-                    name: "Explorer",
-                    url: "https://worldchain-sepolia.explorer.alchemy.com",
+                    name: "Flow EVM Explorer",
+                    url: "https://evm-testnet.flowscan.io",
                 },
             },
         };
@@ -1404,14 +1590,14 @@ async function fulfillOrderOnContract(orderId, proof) {
 
         // Create public client for reading blockchain data
         const publicClient = createPublicClient({
-            chain: worldchainSepolia,
+            chain: flowEvmTestnet,
             transport: http(rpcUrl),
         });
 
         // Create wallet client for sending transactions
         const walletClient = createWalletClient({
             account,
-            chain: worldchainSepolia,
+            chain: flowEvmTestnet,
             transport: http(rpcUrl),
         });
 

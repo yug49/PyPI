@@ -5,9 +5,8 @@ async function checkOrderState() {
     console.log("🔍 Checking Order State on Blockchain");
     console.log("====================================");
 
-    const rpcUrl =
-        "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
-    const contractAddress = "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+    const rpcUrl = "https://testnet.evm.nodes.onflow.org";
+    const contractAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
 
     // This is the orderId from our test
     const orderId =

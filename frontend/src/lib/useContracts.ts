@@ -8,9 +8,9 @@ import { useMemo, useState, useCallback, useEffect } from 'react'
 // Common tokens for testing (Flow EVM Testnet)
 export const COMMON_TOKENS = [
   {
-    address: '0xd1AC6E15e820dFaC8fE95ecB85C49458332C98FB' as const,
-    name: 'Mock PYUSD',
-    symbol: 'PYUSD',
+    address: '0xAC49Bd1e5877EAB0529cB9E3beaAAAF3dF67DE9f' as const,
+    name: 'Mock USDC',
+    symbol: 'USDC',
     decimals: 6
   }
 ]
@@ -255,7 +255,7 @@ export function useAdminOperations() {
     )
   }
 
-  // Token management functions removed - PYUSD is hardcoded in the new contract
+  // Token management functions removed - MockUSDC is hardcoded in the new contract
 
   return {
     registerMaker,
@@ -272,8 +272,11 @@ export function useAdminOperations() {
 }
 
 // Hook for ERC20 token operations
-export function useERC20(tokenAddress?: Address) {
+export function useERC20(tokenAddress?: Address, spender?: Address) {
   const { address: userAddress } = useAccount()
+  
+  // Default spender is OrderProtocol for backward compatibility
+  const spenderAddress = spender || CONTRACTS.ORDER_PROTOCOL.address
   
   const balanceResult = useReadContract({
     address: tokenAddress,
@@ -291,7 +294,7 @@ export function useERC20(tokenAddress?: Address) {
     address: tokenAddress,
     abi: CONTRACTS.ERC20.abi,
     functionName: 'allowance',
-    args: userAddress ? [userAddress, CONTRACTS.ORDER_PROTOCOL.address] : undefined,
+    args: userAddress ? [userAddress, spenderAddress] : undefined,
     query: {
       enabled: !!tokenAddress && !!userAddress,
       staleTime: 5000,
@@ -318,9 +321,9 @@ export function useERC20(tokenAddress?: Address) {
       address: tokenAddress,
       abi: CONTRACTS.ERC20.abi,
       functionName: 'approve',
-      args: [CONTRACTS.ORDER_PROTOCOL.address, amount]
+      args: [spenderAddress, amount]
     })
-  }, [tokenAddress, writeContract])
+  }, [tokenAddress, writeContract, spenderAddress])
 
   return {
     balance: balanceResult.data,
@@ -394,12 +397,42 @@ export function useCreateOrder() {
         },
         body: JSON.stringify({
           ...orderData,
-          tokenAddress: COMMON_TOKENS[0].address // Always PYUSD
+          tokenAddress: COMMON_TOKENS[0].address // Always MockUSDC
         })
       })
       
       if (!response.ok) {
-        throw new Error('Failed to save order to database')
+        const errorData = await response.json()
+        
+        // Handle the case where order already exists (race condition with resolver bot)
+        if (response.status === 409 && errorData.error === 'Order already exists') {
+          console.log(`ℹ️ Order ${orderData.orderId} already exists in database (likely processed by resolver bot)`)
+          
+          // Try to fetch the existing order to return it
+          try {
+            const existingOrderResponse = await fetch(`/api/orders/${orderData.orderId}`)
+            if (existingOrderResponse.ok) {
+              const existingOrder = await existingOrderResponse.json()
+              return {
+                success: true,
+                message: 'Order already exists and was retrieved successfully',
+                data: existingOrder.data,
+                wasExisting: true
+              }
+            }
+          } catch (fetchError) {
+            console.warn('Could not fetch existing order, but creation was successful on blockchain')
+          }
+          
+          // If we can't fetch the existing order, still return success since the blockchain transaction worked
+          return {
+            success: true,
+            message: 'Order created successfully on blockchain (database record already exists)',
+            wasExisting: true
+          }
+        }
+        
+        throw new Error(errorData.message || 'Failed to save order to database')
       }
       
       return await response.json()
@@ -421,10 +454,10 @@ export function useCreateOrder() {
 // Hook for resolver approval and staking
 export function useResolverApproval() {
   const { address } = useAccount()
-  const pyusdToken = COMMON_TOKENS[0] // PYUSD token
+  const mockUsdcToken = COMMON_TOKENS[0] // MockUSDC token
   
-  // STAKING_AMOUNT from contract: 100 PYUSD (100 * 1e6 with 6 decimals)
-  const STAKING_AMOUNT = BigInt(100 * 1e6) // 100 PYUSD with 6 decimals
+  // STAKING_AMOUNT from contract: 10 MockUSDC (10 * 1e6 with 6 decimals)
+  const STAKING_AMOUNT = BigInt(10 * 1e6) // 10 MockUSDC with 6 decimals
   
   const { 
     balance, 
@@ -434,7 +467,7 @@ export function useResolverApproval() {
     isApproving, 
     error: tokenError,
     refetch: refetchToken
-  } = useERC20(pyusdToken.address)
+  } = useERC20(mockUsdcToken.address, CONTRACTS.RESOLVER_REGISTRY.address)
 
   // Check if user is already a resolver
   const { data: isResolver, isLoading: isCheckingResolver } = useReadContract({
@@ -462,10 +495,10 @@ export function useResolverApproval() {
       setError(null)
       
       if (!hasEnoughBalance) {
-        throw new Error(`Insufficient PYUSD balance. You need 100 PYUSD to become a resolver.`)
+        throw new Error(`Insufficient MockUSDC balance. You need 10 MockUSDC to become a resolver.`)
       }
 
-      console.log('Approving PYUSD staking amount:', STAKING_AMOUNT.toString())
+      console.log('Approving MockUSDC staking amount:', STAKING_AMOUNT.toString())
       await approve(STAKING_AMOUNT)
       
       // Wait a moment and then refetch to update allowance
@@ -484,7 +517,7 @@ export function useResolverApproval() {
   return {
     approveStaking,
     stakingAmount: STAKING_AMOUNT,
-    formattedStakingAmount: formatTokenAmount(STAKING_AMOUNT, 6), // 6 decimals for PYUSD
+    formattedStakingAmount: formatTokenAmount(STAKING_AMOUNT, 6), // 6 decimals for MockUSDC
     hasEnoughBalance,
     needsApproval,
     currentAllowance: allowance,
@@ -496,26 +529,26 @@ export function useResolverApproval() {
   }
 }
 
-// Hook for PYUSD faucet functionality
-export function usePyusdFaucet() {
+// Hook for MockUSDC faucet functionality
+export function useMockUsdcFaucet() {
   const { writeContract, error, isPending } = useWriteContract()
   const [isLoading, setIsLoading] = useState(false)
   const [localError, setLocalError] = useState<Error | null>(null)
   
-  const pyusdToken = COMMON_TOKENS[0] // PYUSD token
+  const mockUsdcToken = COMMON_TOKENS[0] // MockUSDC token
   
-  // Faucet amount: 1000 PYUSD (enough for multiple stakings)
-  const FAUCET_AMOUNT = BigInt(1000 * 1e6) // 1000 PYUSD with 6 decimals
+  // Faucet amount: 1000 MockUSDC (enough for multiple stakings)
+  const FAUCET_AMOUNT = BigInt(1000 * 1e6) // 1000 MockUSDC with 6 decimals
 
   const claimFromFaucet = useCallback(async () => {
     try {
       setIsLoading(true)
       setLocalError(null)
       
-      console.log('Claiming from PYUSD faucet:', FAUCET_AMOUNT.toString())
+      console.log('Claiming from MockUSDC faucet:', FAUCET_AMOUNT.toString())
       
       await writeContract({
-        address: pyusdToken.address,
+        address: mockUsdcToken.address,
         abi: [
           {
             "type": "function",
@@ -541,12 +574,12 @@ export function usePyusdFaucet() {
     } finally {
       setIsLoading(false)
     }
-  }, [writeContract, pyusdToken.address])
+  }, [writeContract, mockUsdcToken.address])
 
   return {
     claimFromFaucet,
     faucetAmount: FAUCET_AMOUNT,
-    formattedFaucetAmount: formatTokenAmount(FAUCET_AMOUNT, 6), // 6 decimals for PYUSD
+    formattedFaucetAmount: formatTokenAmount(FAUCET_AMOUNT, 6), // 6 decimals for MockUSDC
     isLoading: isLoading || isPending,
     error: localError || error
   }

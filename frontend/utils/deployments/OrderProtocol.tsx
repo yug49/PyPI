@@ -1,4 +1,4 @@
-const OrderProtocolAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
+const OrderProtocolAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
 
 const OrderProtocolAbi = [
         {

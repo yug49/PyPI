@@ -116,7 +116,7 @@ export default function OrdersList() {
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900">
-                      ₹{order.amount} → PYUSD
+                      ₹{order.amount} → USDC
                     </h4>
                     <p className="text-sm text-gray-600 font-mono break-all">
                       ID: {order.orderId}
