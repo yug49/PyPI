@@ -1,7 +1,7 @@
 // Contract addresses and ABIs (Flow EVM Testnet)
 export const CONTRACTS = {
   MAKER_REGISTRY: {
-    address: "0x986411556861EE12d253fFa0c1F75D32c45A64ca" as const,
+    address: "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55" as const,
     abi: [
       {
         "type": "constructor",
@@ -150,7 +150,7 @@ export const CONTRACTS = {
     ] as const
   },
   RESOLVER_REGISTRY: {
-    address: "0xfA93a0769049B6484675a1E3c8E66F7AFfD5d1de" as const,
+    address: "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2" as const,
     abi: [
       {
         "type": "constructor",
@@ -313,7 +313,7 @@ export const CONTRACTS = {
     ] as const
   },
   ORDER_PROTOCOL: {
-    address: "0x4B8331a22a804Dc767498D5A987299A5886087C8" as const,
+    address: "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a" as const,
     abi: [
       {
         "type": "constructor",
