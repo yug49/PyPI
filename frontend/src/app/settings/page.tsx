@@ -13,8 +13,8 @@ export default function SettingsPage() {
   const router = useRouter()
   
   const [formData, setFormData] = useState({
-    defaultStartPrice: '90.00',
-    defaultEndPrice: '80.00'
+    defaultStartPricePercentage: '5',
+    defaultEndPricePercentage: '2'
   })
   const [saved, setSaved] = useState(false)
 
@@ -28,8 +28,8 @@ export default function SettingsPage() {
   // Update form data when settings change
   useEffect(() => {
     setFormData({
-      defaultStartPrice: settings.defaultStartPrice,
-      defaultEndPrice: settings.defaultEndPrice
+      defaultStartPricePercentage: settings.defaultStartPricePercentage,
+      defaultEndPricePercentage: settings.defaultEndPricePercentage
     })
   }, [settings])
 
@@ -68,57 +68,69 @@ export default function SettingsPage() {
           <div className="px-6 py-4 border-b border-gray-200">
             <h1 className="text-2xl font-bold text-gray-900">Maker Settings</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Configure your default order parameters
+              Configure your default premium percentages for order pricing
             </p>
           </div>
 
           <div className="px-6 py-6 space-y-6">
-            {/* Start Price (INR per PYUSD) */}
+            {/* Start Price Percentage */}
             <div>
-              <label htmlFor="defaultStartPrice" className="block text-sm font-medium text-gray-700 mb-2">
-                Start Price (INR per PYUSD)
+              <label htmlFor="defaultStartPricePercentage" className="block text-sm font-medium text-gray-700 mb-2">
+                Start Price Percentage (%)
               </label>
-              <input
-                type="number"
-                id="defaultStartPrice"
-                step="0.01"
-                min="0"
-                placeholder="90.00"
-                value={formData.defaultStartPrice}
-                onChange={(e) => handleInputChange('defaultStartPrice', e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm placeholder-gray-700"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  id="defaultStartPricePercentage"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  placeholder="5"
+                  value={formData.defaultStartPricePercentage}
+                  onChange={(e) => handleInputChange('defaultStartPricePercentage', e.target.value)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">%</span>
+                </div>
+              </div>
               <p className="text-xs text-blue-500 mt-1">
-                Starting price in INR per token (Dutch auction starts high)
+                Percentage above market rate for starting price (Dutch auction starts high)
               </p>
             </div>
 
-            {/* End Price (INR per PYUSD) */}
+            {/* End Price Percentage */}
             <div>
-              <label htmlFor="defaultEndPrice" className="block text-sm font-medium text-gray-700 mb-2">
-                End Price (INR per PYUSD)
+              <label htmlFor="defaultEndPricePercentage" className="block text-sm font-medium text-gray-700 mb-2">
+                End Price Percentage (%)
               </label>
-              <input
-                type="number"
-                id="defaultEndPrice"
-                step="0.01"
-                min="0"
-                placeholder="80.00"
-                value={formData.defaultEndPrice}
-                onChange={(e) => handleInputChange('defaultEndPrice', e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm placeholder-gray-700"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  id="defaultEndPricePercentage"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  placeholder="2"
+                  value={formData.defaultEndPricePercentage}
+                  onChange={(e) => handleInputChange('defaultEndPricePercentage', e.target.value)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">%</span>
+                </div>
+              </div>
               <p className="text-xs text-blue-500 mt-1">
-                Ending price in INR per token (Dutch auction ends low)
+                Percentage below market rate for ending price (Dutch auction ends lower)
               </p>
               <p className="text-xs text-red-500 mt-1">
-                <strong>Note:</strong> Start price must be higher than end price for the Dutch auction mechanism
+                <strong>Note:</strong> Start premium must be higher than end premium for Dutch auction
               </p>
             </div>
 
             {/* Price Validation */}
-            {formData.defaultStartPrice && formData.defaultEndPrice && 
-             parseFloat(formData.defaultStartPrice) <= parseFloat(formData.defaultEndPrice) && (
+            {formData.defaultStartPricePercentage && formData.defaultEndPricePercentage && 
+             parseFloat(formData.defaultStartPricePercentage) <= parseFloat(formData.defaultEndPricePercentage) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                 <div className="flex">
                   <div className="flex-shrink-0">
@@ -128,7 +140,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-yellow-800">
-                      <strong>Warning:</strong> End price should typically be lower than start price for Dutch auctions.
+                      <strong>Warning:</strong> Start premium should be higher than end premium for Dutch auctions.
                     </p>
                   </div>
                 </div>
@@ -184,13 +196,14 @@ export default function SettingsPage() {
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">About Default Prices</h3>
+              <h3 className="text-sm font-medium text-blue-800">About Premium Percentages</h3>
               <div className="mt-2 text-sm text-blue-700">
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>These default values will be automatically filled when you create new orders</li>
-                  <li>You can always modify the prices when creating individual orders</li>
+                  <li>These percentages will be added to the current market rate when creating orders</li>
+                  <li>Example: If market rate is ₹85 and start premium is 5%, start price = ₹89.25</li>
+                  <li>You can always modify the calculated prices when creating individual orders</li>
                   <li>Settings are stored locally in your browser and tied to your wallet address</li>
-                  <li>For Dutch auctions, the start price should typically be higher than the end price</li>
+                  <li>For Dutch auctions, start premium should be higher than end premium</li>
                 </ul>
               </div>
             </div>

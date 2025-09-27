@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 
 export interface MakerSettings {
-  defaultStartPrice: string
-  defaultEndPrice: string
+  defaultStartPricePercentage: string
+  defaultEndPricePercentage: string
 }
 
 const DEFAULT_SETTINGS: MakerSettings = {
-  defaultStartPrice: '90.00',
-  defaultEndPrice: '80.00'
+  defaultStartPricePercentage: '5',
+  defaultEndPricePercentage: '2'
 }
 
 export function useMakerSettings() {
@@ -66,8 +66,8 @@ export function useMakerSettings() {
 
   const getDefaultValues = () => {
     return {
-      defaultStartPrice: settings.defaultStartPrice || '',
-      defaultEndPrice: settings.defaultEndPrice || ''
+      defaultStartPricePercentage: settings.defaultStartPricePercentage || '',
+      defaultEndPricePercentage: settings.defaultEndPricePercentage || ''
     }
   }
 

@@ -5,6 +5,7 @@ import { useAccount, useWaitForTransactionReceipt, useWatchContractEvent } from 
 import { useSearchParams } from 'next/navigation'
 import { useCreateOrder, useERC20, useResolverFee, calculateApprovalAmount, COMMON_TOKENS, formatTokenAmount } from '@/lib/useContracts'
 import { useMakerSettings } from '@/lib/useMakerSettings'
+import { useCoinPrice } from '@/lib/useCoinPrice'
 
 import { CONTRACTS } from '@/lib/contracts'
 
@@ -17,6 +18,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   const searchParams = useSearchParams()
   const { createOrder, saveOrderToDatabase, isLoading: isCreatingOrder, error: createOrderError, hash } = useCreateOrder()
   const { settings: makerSettings } = useMakerSettings()
+  const { price: coinPrice, loading: priceLoading, error: priceError, lastUpdated, refresh: refreshPrice } = useCoinPrice()
   
   // Get resolver fee from contract
   const { resolverFee } = useResolverFee()
@@ -26,11 +28,29 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
     hash,
   })
   
+  // Calculate start and end prices based on coin price and settings percentages
+  const calculatedPrices = useMemo(() => {
+    if (!coinPrice || !makerSettings.defaultStartPricePercentage || !makerSettings.defaultEndPricePercentage) {
+      return { startPrice: '', endPrice: '' }
+    }
+
+    const startpercentage = parseFloat(makerSettings.defaultStartPricePercentage) / 100
+    const endpercentage = parseFloat(makerSettings.defaultEndPricePercentage) / 100
+
+    const startPremium = parseFloat(makerSettings.defaultStartPricePercentage) / 100
+    const endDiscount = parseFloat(makerSettings.defaultEndPricePercentage) / 100
+
+    const startPrice = (coinPrice * (1 + startPremium)).toFixed(2)
+    const endPrice = (coinPrice * (1 - endDiscount)).toFixed(2)
+
+    return { startPrice, endPrice }
+  }, [coinPrice, makerSettings.defaultStartPricePercentage, makerSettings.defaultEndPricePercentage])
+
   // Form state - Initialize with URL parameters from scanned QR code
   const [formData, setFormData] = useState({
     amount: searchParams.get('amount') || '',
-    startPrice: makerSettings.defaultStartPrice || '',
-    endPrice: makerSettings.defaultEndPrice || '',
+    startPrice: '',
+    endPrice: '',
     recipientUpiAddress: searchParams.get('upiAddress') || ''
   })
   
@@ -175,14 +195,16 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
     }
   }, [searchParams])
 
-  // Update form data with default settings when they change
+  // Update form data with calculated prices when they change
   useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      startPrice: prev.startPrice || makerSettings.defaultStartPrice || '',
-      endPrice: prev.endPrice || makerSettings.defaultEndPrice || ''
-    }))
-  }, [makerSettings.defaultStartPrice, makerSettings.defaultEndPrice])
+    if (calculatedPrices.startPrice && calculatedPrices.endPrice) {
+      setFormData(prev => ({
+        ...prev,
+        startPrice: calculatedPrices.startPrice,
+        endPrice: calculatedPrices.endPrice
+      }))
+    }
+  }, [calculatedPrices.startPrice, calculatedPrices.endPrice])
 
   // Handle receipt when transaction is confirmed
   useEffect(() => {
@@ -440,17 +462,44 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
       </div>
 
       <form className="space-y-4">
-        {/* Token Info - Fixed to PYUSD only */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center mb-2">
-            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-              <span className="text-white text-sm font-bold">P</span>
+        {/* Current USD Coin Price Display */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center">
+              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
+                <span className="text-white text-sm font-bold">₹</span>
+              </div>
+              <span className="font-medium text-green-800">Current USD Coin Rate</span>
             </div>
-            <span className="font-medium text-blue-800">{selectedToken.name} ({selectedToken.symbol})</span>
+            <button
+              onClick={refreshPrice}
+              disabled={priceLoading}
+              className="text-green-600 hover:text-green-800 text-sm font-medium disabled:opacity-50"
+            >
+              {priceLoading ? 'Updating...' : 'Refresh'}
+            </button>
           </div>
-          <p className="text-sm text-blue-700">
-            This platform exclusively supports PYUSD for payments. All orders will be settled using PYUSD tokens.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              {priceLoading ? (
+                <div className="animate-pulse">
+                  <div className="h-6 bg-green-200 rounded w-20"></div>
+                </div>
+              ) : priceError ? (
+                <span className="text-red-600 text-sm">Failed to load price</span>
+              ) : (
+                <span className="text-2xl font-bold text-green-700">
+                  ₹{coinPrice?.toFixed(2)}
+                </span>
+              )}
+              <span className="text-green-600 text-sm ml-2">per USD Coin</span>
+            </div>
+            {lastUpdated && (
+              <span className="text-xs text-green-500">
+                Updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Amount */}
@@ -488,24 +537,23 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             <label className="block text-sm font-medium text-gray-700">
               Start Price (INR per {selectedToken.symbol})
             </label>
-            {makerSettings.defaultStartPrice && formData.startPrice === makerSettings.defaultStartPrice && (
+            {makerSettings.defaultStartPricePercentage && (
               <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                Using default
+                Using {makerSettings.defaultStartPricePercentage}% premium
               </span>
             )}
           </div>
-          <input
-            type="number"
-            name="startPrice"
-            value={formData.startPrice}
-            onChange={handleInputChange}
-            placeholder="90.00"
-            step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
-          />
+          <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">
+            {calculatedPrices.startPrice || 'Calculating...'}
+          </div>
           <p className="text-xs text-gray-500 mt-1">
             Starting price in INR per token (Dutch auction starts high)
           </p>
+          {coinPrice && makerSettings.defaultStartPricePercentage && (
+            <p className="text-xs text-blue-600 mt-1">
+              Calculated: ₹{coinPrice.toFixed(2)} + {makerSettings.defaultStartPricePercentage}% premium
+            </p>
+          )}
         </div>
 
         {/* End Price */}
@@ -514,27 +562,23 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             <label className="block text-sm font-medium text-gray-700">
               End Price (INR per {selectedToken.symbol})
             </label>
-            {makerSettings.defaultEndPrice && formData.endPrice === makerSettings.defaultEndPrice && (
+            {makerSettings.defaultEndPricePercentage && (
               <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                Using default
+                Using {makerSettings.defaultEndPricePercentage}% discount
               </span>
             )}
           </div>
-          <input
-            type="number"
-            name="endPrice"
-            value={formData.endPrice}
-            onChange={handleInputChange}
-            placeholder="80.00"
-            step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
-          />
+          <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">
+            {calculatedPrices.endPrice || 'Calculating...'}
+          </div>
           <p className="text-xs text-gray-500 mt-1">
             Ending price in INR per token (Dutch auction ends low)
           </p>
-          <p className="text-xs text-orange-600 mt-1">
-            <strong>Note:</strong> Start price must be higher than end price for the Dutch auction mechanism
-          </p>
+          {coinPrice && makerSettings.defaultEndPricePercentage && (
+            <p className="text-xs text-blue-600 mt-1">
+              Calculated: ₹{coinPrice.toFixed(2)} - {makerSettings.defaultEndPricePercentage}% discount
+            </p>
+          )}
         </div>
 
         {/* Approval Calculation Info */}

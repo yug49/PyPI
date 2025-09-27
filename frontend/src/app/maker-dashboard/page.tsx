@@ -5,31 +5,17 @@ import { useAccount } from 'wagmi'
 import { useSearchParams } from 'next/navigation'
 import { useMakerDetails } from '@/lib/useContracts'
 import CreateOrder from '@/components/CreateOrder'
-import OrdersList from '@/components/OrdersList'
 
 export default function MakerDashboard() {
   const { address, isConnected } = useAccount()
   const searchParams = useSearchParams()
   const { isRegistered, isForeigner, identityProof, isLoading, error } = useMakerDetails(address || '')
-  const [activeTab, setActiveTab] = useState<'orders' | 'create'>('orders')
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  // Set active tab from URL parameter (e.g., when coming from QR scanner)
-  useEffect(() => {
-    const tabParam = searchParams?.get('tab')
-    if (tabParam === 'create' || tabParam === 'orders') {
-      setActiveTab(tabParam)
-    }
-  }, [searchParams])
 
   // Check if coming from QR scanner
   const isFromQRScan = searchParams?.get('upiAddress') && searchParams?.get('tab') === 'create'
 
   const handleOrderCreated = (orderId?: string) => {
-    // Refresh the orders list when a new order is created
-    setRefreshKey(prev => prev + 1)
-    
-    // Don't switch tabs - stay on create tab to show processing/completion status
+    // Order created successfully - could add notification here if needed
   }
 
   // Only check wallet connection for normal dashboard access (not from QR scan)
@@ -175,45 +161,9 @@ export default function MakerDashboard() {
           )}
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex">
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'orders'
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Your Orders
-              </button>
-              <button
-                onClick={() => setActiveTab('create')}
-                className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'create'
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Create Order
-              </button>
-            </nav>
-          </div>
-        </div>
-
-        {/* Tab Content */}
+        {/* Content */}
         <div className="space-y-6">
-          {activeTab === 'orders' && (
-            <div key={refreshKey}>
-              <OrdersList />
-            </div>
-          )}
-          
-          {activeTab === 'create' && (
-            <CreateOrder onOrderCreated={handleOrderCreated} />
-          )}
+          <CreateOrder onOrderCreated={handleOrderCreated} />
         </div>
       </div>
     </div>
