@@ -1,4 +1,4 @@
-const OrderProtocolAddress = "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+const OrderProtocolAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
 
 const OrderProtocolAbi = [
         {
@@ -31,6 +31,11 @@ const OrderProtocolAbi = [
                 },
                 {
                     "name": "_makerRegistry",
+                    "type": "address",
+                    "internalType": "address"
+                },
+                {
+                    "name": "_usdCoinContractAddress",
                     "type": "address",
                     "internalType": "address"
                 }
@@ -69,7 +74,6 @@ const OrderProtocolAbi = [
             "outputs": [],
             "stateMutability": "nonpayable"
         },
-
         {
             "type": "function",
             "name": "createOrder",
@@ -78,11 +82,6 @@ const OrderProtocolAbi = [
                     "name": "_amount",
                     "type": "uint256",
                     "internalType": "uint256"
-                },
-                {
-                    "name": "_token",
-                    "type": "address",
-                    "internalType": "address"
                 },
                 {
                     "name": "_startPrice",
@@ -158,11 +157,6 @@ const OrderProtocolAbi = [
                             "name": "amount",
                             "type": "uint256",
                             "internalType": "uint256"
-                        },
-                        {
-                            "name": "token",
-                            "type": "address",
-                            "internalType": "address"
                         },
                         {
                             "name": "startPrice",
@@ -241,11 +235,6 @@ const OrderProtocolAbi = [
                             "internalType": "uint256"
                         },
                         {
-                            "name": "token",
-                            "type": "address",
-                            "internalType": "address"
-                        },
-                        {
                             "name": "startPrice",
                             "type": "uint256",
                             "internalType": "uint256"
@@ -320,11 +309,6 @@ const OrderProtocolAbi = [
                             "name": "amount",
                             "type": "uint256",
                             "internalType": "uint256"
-                        },
-                        {
-                            "name": "token",
-                            "type": "address",
-                            "internalType": "address"
                         },
                         {
                             "name": "startPrice",
@@ -422,6 +406,15 @@ const OrderProtocolAbi = [
         },
         {
             "type": "function",
+            "name": "i_usdCoinContractAddress",
+            "inputs": [],
+            "outputs": [
+                { "name": "", "type": "address", "internalType": "address" }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
             "name": "owner",
             "inputs": [],
             "outputs": [
@@ -429,7 +422,6 @@ const OrderProtocolAbi = [
             ],
             "stateMutability": "view"
         },
-
         {
             "type": "function",
             "name": "renounceOwnership",
@@ -486,11 +478,6 @@ const OrderProtocolAbi = [
                     "internalType": "uint256"
                 },
                 {
-                    "name": "token",
-                    "type": "address",
-                    "internalType": "address"
-                },
-                {
                     "name": "startPrice",
                     "type": "uint256",
                     "internalType": "uint256"
@@ -531,7 +518,6 @@ const OrderProtocolAbi = [
             ],
             "stateMutability": "view"
         },
-
         {
             "type": "function",
             "name": "s_takerToOrderIds",
