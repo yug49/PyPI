@@ -6,7 +6,7 @@ async function checkOrderState() {
     console.log("====================================");
 
     const rpcUrl = "https://testnet.evm.nodes.onflow.org";
-    const contractAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
+    const contractAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
 
     // This is the orderId from our test
     const orderId =
