@@ -102,14 +102,10 @@ const worldchainSepolia = {
     },
     rpcUrls: {
         default: {
-            http: [
-                "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q",
-            ],
+            http: ["https://testnet.evm.nodes.onflow.org"],
         },
         public: {
-            http: [
-                "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q",
-            ],
+            http: ["https://testnet.evm.nodes.onflow.org"],
         },
     },
 };
@@ -573,11 +569,10 @@ router.post("/:orderId/accept", async (req, res) => {
             const { worldchainSepolia } = require("viem/chains");
 
             const rpcUrl =
-                process.env.RPC_URL ||
-                "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
+                process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
             const contractAddress =
                 process.env.CONTRACT_ADDRESS ||
-                "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+                "0x59B3b04640220F167db383296C259A452Be42b3B";
 
             const publicClient = createPublicClient({
                 chain: worldchainSepolia,
@@ -766,14 +761,13 @@ router.post("/:orderId/accept", async (req, res) => {
 
         // Set up blockchain connection with relayer's private key using viem
         const rpcUrl =
-            process.env.RPC_URL ||
-            "https://worldchain-sepolia.g.alchemy.com/v2/ydzpyjQ8ltFGNlU9MwB0q";
+            process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
         const relayerPrivateKey =
             process.env.RELAYER_PRIVATE_KEY ||
             "6c1db0c528e7cac4202419249bc98d3df647076707410041e32f6e9080906bfb";
         const contractAddress =
             process.env.CONTRACT_ADDRESS ||
-            "0xC3dd62f9EE406b43A2f463b3a59BEcDC1579933b";
+            "0x59B3b04640220F167db383296C259A452Be42b3B";
 
         // Create account from private key
         const account = privateKeyToAccount(`0x${relayerPrivateKey}`);
@@ -1195,7 +1189,7 @@ async function getOrderFromContract(orderId) {
                 blockExplorers: {
                     default: {
                         name: "Explorer",
-                        url: "https://worldchain-sepolia.explorer.alchemy.com",
+                        url: "https://testnet.evm.nodes.onflow.org",
                     },
                 },
             },
@@ -1419,7 +1413,7 @@ async function fulfillOrderOnContract(orderId, proof) {
             blockExplorers: {
                 default: {
                     name: "Explorer",
-                    url: "https://worldchain-sepolia.explorer.alchemy.com",
+                    url: "https://testnet.evm.nodes.onflow.org",
                 },
             },
         };
