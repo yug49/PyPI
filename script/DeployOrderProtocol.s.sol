@@ -19,20 +19,21 @@ contract DeployOrderProtocol is Script {
             HelperConfig helperConfig
         )
     {
-        helperConfig = new HelperConfig();
+        /// @notice For the deployment of flow, instead of scripts we have used manually method, by "forge create" and "forge verify". You can see the deployed contract address in the deployments.md file in the root directory
 
+        helperConfig = new HelperConfig();
         (
             uint256 maxOrderTime,
-            uint256 maxFullfillmentTime,
             address relayerAddress,
-            uint256 deployerKey,
+            uint256 maxFullfillmentTime,
             uint16 resolverFee,
-            address pyusdContractAddress
+            address usdCoinContractAddress
         ) = helperConfig.activeNetworkConfig();
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
         makerRegistry = new MakerRegistry();
-        resolverRegistry = new ResolverRegistry(pyusdContractAddress);
+        resolverRegistry = new ResolverRegistry(usdCoinContractAddress);
+        
         orderProtocol = new OrderProtocol(
             maxOrderTime,
             address(resolverRegistry),
@@ -40,7 +41,7 @@ contract DeployOrderProtocol is Script {
             maxFullfillmentTime,
             resolverFee,
             address(makerRegistry),
-            pyusdContractAddress
+            usdCoinContractAddress
         );
         vm.stopBroadcast();
 
