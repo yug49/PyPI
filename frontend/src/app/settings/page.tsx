@@ -73,10 +73,10 @@ export default function SettingsPage() {
           </div>
 
           <div className="px-6 py-6 space-y-6">
-            {/* Start Price (INR per PYUSD) */}
+            {/* Start Price (INR per USDC) */}
             <div>
               <label htmlFor="defaultStartPrice" className="block text-sm font-medium text-gray-700 mb-2">
-                Start Price (INR per PYUSD)
+                Start Price (INR per USDC)
               </label>
               <input
                 type="number"
@@ -93,10 +93,10 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            {/* End Price (INR per PYUSD) */}
+            {/* End Price (INR per USDC) */}
             <div>
               <label htmlFor="defaultEndPrice" className="block text-sm font-medium text-gray-700 mb-2">
-                End Price (INR per PYUSD)
+                End Price (INR per USDC)
               </label>
               <input
                 type="number"
