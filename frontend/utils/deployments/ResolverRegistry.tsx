@@ -1,9 +1,15 @@
-const ResolverRegistryAddress = "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55";
+const ResolverRegistryAddress = "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2";
 
 const ResolverRegistryABI = [
         {
             "type": "constructor",
-            "inputs": [],
+            "inputs": [
+                {
+                    "name": "_usdCoinContractAddress",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
             "stateMutability": "nonpayable"
         },
         {
@@ -58,6 +64,25 @@ const ResolverRegistryABI = [
             "type": "function",
             "name": "renounceOwnership",
             "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "function",
+            "name": "resolveDispute",
+            "inputs": [
+                {
+                    "name": "resolver",
+                    "type": "address",
+                    "internalType": "address"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                },
+                { "name": "to", "type": "address", "internalType": "address" }
+            ],
             "outputs": [],
             "stateMutability": "nonpayable"
         },
@@ -123,6 +148,16 @@ const ResolverRegistryABI = [
                     "internalType": "address"
                 }
             ]
+        },
+        {
+            "type": "error",
+            "name": "ResolverRegistry__ResolverAlreadyExists",
+            "inputs": []
+        },
+        {
+            "type": "error",
+            "name": "ResolverRegistry__ResolverDoesNotExists",
+            "inputs": []
         }
     ];
 
