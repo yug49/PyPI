@@ -106,7 +106,7 @@ contract OrderProtocol is Ownable {
     uint16 public immutable i_resolverFee; // fee percentage (in basis points) charged by the resolver for
     uint256 public immutable i_maxFullfillmentTime; // maximum time duration within which an accepted order must be fulfilled + a buffer time for relayer to verify proof before calling (30-40 seconds)
     address public i_makerRegistry; // address of the MakerRegistry contract
-    address public i_pyusdContractAddress; // address of the PYUSD contract
+    address public i_usdCoinContractAddress; // address of the USD coin contract
 
     uint256 public constant PRECISION = 1e18; // precision for price calculations (INR amounts and prices are in 18 decimals)
 
@@ -170,11 +170,11 @@ contract OrderProtocol is Ownable {
         if (order.fullfilled) revert OrderProtocol__AlreadyFullfilled();
         if (block.timestamp > order.startTime + i_maxOrderTime) {
             // Calculate refund amount - what was originally paid by maker
-            uint256 totalTokenAmountPaid = _calculateTokenAmount(order.amount, order.endPrice, i_pyusdContractAddress);
+            uint256 totalTokenAmountPaid = _calculateTokenAmount(order.amount, order.endPrice, i_usdCoinContractAddress);
             uint256 resolverFeeAmountPaid = _calculateResolverFee(totalTokenAmountPaid);
             uint256 totalRefundAmount = totalTokenAmountPaid + resolverFeeAmountPaid;
 
-            IERC20(i_pyusdContractAddress).transfer(order.maker, totalRefundAmount);
+            IERC20(i_usdCoinContractAddress).transfer(order.maker, totalRefundAmount);
             order.fullfilled = true;
             s_orderIdToOrder[_orderId] = order;
             return;
@@ -210,7 +210,7 @@ contract OrderProtocol is Ownable {
         uint256 _maxFullfillmentTime,
         uint16 _resolverFee,
         address _makerRegistry,
-        address _pyusdContractAddress
+        address _usdCoinContractAddress
     ) Ownable(msg.sender) {
         i_maxOrderTime = _maxOrderTime;
         i_resolverRegistry = _resolverRegistry;
@@ -218,7 +218,7 @@ contract OrderProtocol is Ownable {
         i_maxFullfillmentTime = _maxFullfillmentTime;
         i_resolverFee = _resolverFee;
         i_makerRegistry = _makerRegistry;
-        i_pyusdContractAddress = _pyusdContractAddress;
+        i_usdCoinContractAddress = _usdCoinContractAddress;
     }
 
     // Functions
@@ -250,13 +250,13 @@ contract OrderProtocol is Ownable {
         }
 
         // Calculate token amount needed at the end price (worst case scenario)
-        uint256 totalTokenAmount = _calculateTokenAmount(_amount, _endPrice, i_pyusdContractAddress);
+        uint256 totalTokenAmount = _calculateTokenAmount(_amount, _endPrice, i_usdCoinContractAddress);
         // Calculate resolver fee
         uint256 resolverFeeAmount = _calculateResolverFee(totalTokenAmount);
         // Total amount to be paid by maker (including resolver fee)
         uint256 totalPayableAmount = totalTokenAmount + resolverFeeAmount;
 
-        IERC20(i_pyusdContractAddress).transferFrom(msg.sender, address(this), totalPayableAmount);
+        IERC20(i_usdCoinContractAddress).transferFrom(msg.sender, address(this), totalPayableAmount);
 
         orderId = keccak256(abi.encodePacked(msg.sender, _amount, s_orderCount));
         Order memory newOrder = Order({
@@ -337,11 +337,11 @@ contract OrderProtocol is Ownable {
         }
         if (block.timestamp > order.acceptedTime + i_maxFullfillmentTime || bytes(_proof).length == 0) {
             // Payment failed or timed out - refund the maker
-            uint256 totalTokenAmountPaid = _calculateTokenAmount(order.amount, order.endPrice, i_pyusdContractAddress);
+            uint256 totalTokenAmountPaid = _calculateTokenAmount(order.amount, order.endPrice, i_usdCoinContractAddress);
             uint256 resolverFeeAmountPaid = _calculateResolverFee(totalTokenAmountPaid);
             uint256 totalRefundAmount = totalTokenAmountPaid + resolverFeeAmountPaid;
 
-            IERC20(i_pyusdContractAddress).transfer(order.maker, totalRefundAmount);
+            IERC20(i_usdCoinContractAddress).transfer(order.maker, totalRefundAmount);
             order.fullfilled = true;
             s_orderIdToOrder[_orderId] = order;
 
@@ -350,7 +350,7 @@ contract OrderProtocol is Ownable {
         }
 
         // Calculate how much tokens the resolver should get at the accepted price
-        uint256 resolverTokenAmount = _calculateTokenAmount(order.amount, order.acceptedPrice, i_pyusdContractAddress);
+        uint256 resolverTokenAmount = _calculateTokenAmount(order.amount, order.acceptedPrice, i_usdCoinContractAddress);
         uint256 resolverFeeAmount = _calculateResolverFee(resolverTokenAmount);
         uint256 totalAmountToResolver = resolverTokenAmount + resolverFeeAmount;
 
@@ -359,17 +359,17 @@ contract OrderProtocol is Ownable {
         // The resolver should receive tokens for completing the payment, not pay more tokens
 
         // Calculate what the maker originally paid
-        uint256 makerOriginalTokenAmount = _calculateTokenAmount(order.amount, order.endPrice, i_pyusdContractAddress);
+        uint256 makerOriginalTokenAmount = _calculateTokenAmount(order.amount, order.endPrice, i_usdCoinContractAddress);
         uint256 makerOriginalFeeAmount = _calculateResolverFee(makerOriginalTokenAmount);
         uint256 makerTotalPaid = makerOriginalTokenAmount + makerOriginalFeeAmount;
 
         // Resolver gets the tokens they deserve + fee
-        IERC20(i_pyusdContractAddress).transfer(order.taker, totalAmountToResolver);
+        IERC20(i_usdCoinContractAddress).transfer(order.taker, totalAmountToResolver);
 
         // Return remaining tokens to maker (if any)
         uint256 amountToReturnToMaker = makerTotalPaid - totalAmountToResolver;
         if (amountToReturnToMaker > 0) {
-            IERC20(i_pyusdContractAddress).transfer(order.maker, amountToReturnToMaker);
+            IERC20(i_usdCoinContractAddress).transfer(order.maker, amountToReturnToMaker);
         }
 
         s_orderIdToProof[_orderId] = _proof;

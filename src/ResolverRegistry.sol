@@ -66,14 +66,14 @@ contract ResolverRegistry is Ownable {
     error ResolverRegistry__ResolverAlreadyExists();
     error ResolverRegistry__ResolverDoesNotExists();
 
-    uint256 private constant STAKING_AMOUNT = 100 * 1e6; // 100 PYUSD (6 decimals)
-    IERC20 private immutable i_pyusdContractAddress;
+    uint256 private constant STAKING_AMOUNT = 10 * 1e6; // 10 USD (6 decimals)
+    IERC20 private immutable i_usdCoinContractAddress;
     mapping(address => uint256) private s_stakes;
     // mapping of resolver address to whether it's valid
     mapping(address => bool) public s_resolvers;
 
-    constructor(address _pyusdContractAddress) Ownable(msg.sender) {
-        i_pyusdContractAddress = IERC20(_pyusdContractAddress);
+    constructor(address _usdCoinContractAddress) Ownable(msg.sender) {
+        i_usdCoinContractAddress = IERC20(_usdCoinContractAddress);
     }
 
     /**
@@ -85,7 +85,7 @@ contract ResolverRegistry is Ownable {
         if (s_resolvers[resolver]) {
             revert ResolverRegistry__ResolverAlreadyExists();
         }
-        i_pyusdContractAddress.transferFrom(resolver, address(this), STAKING_AMOUNT);
+        i_usdCoinContractAddress.transferFrom(resolver, address(this), STAKING_AMOUNT);
         s_stakes[resolver] += STAKING_AMOUNT;
         s_resolvers[resolver] = true;
     }
@@ -98,7 +98,7 @@ contract ResolverRegistry is Ownable {
         if (!s_resolvers[resolver]) {
             revert ResolverRegistry__ResolverDoesNotExists();
         }
-        i_pyusdContractAddress.transfer(resolver, s_stakes[resolver]);
+        i_usdCoinContractAddress.transfer(resolver, s_stakes[resolver]);
         s_stakes[resolver] = 0;
         s_resolvers[resolver] = false;
     }
@@ -116,8 +116,8 @@ contract ResolverRegistry is Ownable {
         if (amount > s_stakes[resolver]) {
             amount = s_stakes[resolver];
         }
-        i_pyusdContractAddress.transfer(to, amount);
-        i_pyusdContractAddress.transfer(resolver, s_stakes[resolver] - amount);
+        i_usdCoinContractAddress.transfer(to, amount);
+        i_usdCoinContractAddress.transfer(resolver, s_stakes[resolver] - amount);
         s_stakes[resolver] = 0;
         s_resolvers[resolver] = false;
     }
