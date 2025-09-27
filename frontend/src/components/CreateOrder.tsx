@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAccount, useWaitForTransactionReceipt, useWatchContractEvent } from 'wagmi'
+import { useSearchParams } from 'next/navigation'
 import { useCreateOrder, useERC20, useResolverFee, calculateApprovalAmount, COMMON_TOKENS, formatTokenAmount } from '@/lib/useContracts'
 
 import { CONTRACTS } from '@/lib/contracts'
@@ -12,6 +13,7 @@ interface CreateOrderProps {
 
 export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   const { address } = useAccount()
+  const searchParams = useSearchParams()
   const { createOrder, saveOrderToDatabase, isLoading: isCreatingOrder, error: createOrderError, hash } = useCreateOrder()
   
   // Get resolver fee from contract
@@ -22,12 +24,12 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
     hash,
   })
   
-  // Form state
+  // Form state - Initialize with URL parameters from scanned QR code
   const [formData, setFormData] = useState({
-    amount: '',
+    amount: searchParams.get('amount') || '',
     startPrice: '',
     endPrice: '',
-    recipientUpiAddress: ''
+    recipientUpiAddress: searchParams.get('upiAddress') || ''
   })
   
   // Fixed token since only PYUSD is supported
@@ -156,6 +158,20 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
       setStep('form')
     }
   }
+
+  // Update form data when URL parameters change (from QR code scan)
+  useEffect(() => {
+    const upiAddress = searchParams?.get('upiAddress')
+    const amount = searchParams?.get('amount')
+    
+    if (upiAddress || amount) {
+      setFormData(prev => ({
+        ...prev,
+        ...(upiAddress && { recipientUpiAddress: upiAddress }),
+        ...(amount && { amount: amount })
+      }))
+    }
+  }, [searchParams])
 
   // Handle receipt when transaction is confirmed
   useEffect(() => {
@@ -438,7 +454,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             onChange={handleInputChange}
             placeholder="100.00"
             step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
           />
           <p className="text-xs text-gray-500 mt-1">
             Amount in Indian Rupees (INR) you want to send
@@ -467,7 +483,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             onChange={handleInputChange}
             placeholder="90.00"
             step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
           />
           <p className="text-xs text-gray-500 mt-1">
             Starting price in INR per token (Dutch auction starts high)
@@ -486,7 +502,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             onChange={handleInputChange}
             placeholder="80.00"
             step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
           />
           <p className="text-xs text-gray-500 mt-1">
             Ending price in INR per token (Dutch auction ends low)
@@ -525,7 +541,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
             value={formData.recipientUpiAddress}
             onChange={handleInputChange}
             placeholder="user@paytm"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 font-medium"
           />
         </div>
 
