@@ -124,7 +124,7 @@ export default function ResolverTab() {
                 </div>
                 <div className="mt-4">
                   <p className="text-sm text-gray-600 mb-2">Token</p>
-                  <p className="font-mono text-sm bg-gray-100 p-2 rounded">PYUSD</p>
+                  <p className="font-mono text-sm bg-gray-100 p-2 rounded">USDC</p>
                 </div>
                 <div className="mt-4 flex justify-end">
                   <button
@@ -164,7 +164,7 @@ export default function ResolverTab() {
                 
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 mb-2">Token</p>
-                  <p className="font-mono text-sm bg-gray-100 p-2 rounded">PYUSD</p>
+                  <p className="font-mono text-sm bg-gray-100 p-2 rounded">USDC</p>
                 </div>
 
                 {/* Fulfillment Section */}
