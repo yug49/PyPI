@@ -11,7 +11,7 @@ async function createBlockchainOrder() {
     console.log("=================================");
 
     const rpcUrl = "https://testnet.evm.nodes.onflow.org";
-    const contractAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
+    const contractAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
     const privateKey =
         "6c1db0c528e7cac4202419249bc98d3df647076707410041e32f6e9080906bfb"; // Test private key
 
