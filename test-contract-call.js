@@ -5,7 +5,7 @@ async function testContractCall() {
 
     try {
         const rpcUrl = "https://testnet.evm.nodes.onflow.org";
-        const contractAddress = "0x59B3b04640220F167db383296C259A452Be42b3B";
+        const contractAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
         const orderId =
             "0x2e3ca2e75fd1b193a8df070bcc33f03d6aa3edfa0e29fe418d881837e0f6da1c";
 
