@@ -1,4 +1,4 @@
-const MakerRegistryAddress = "0x819fD6110FC56966F514f9d1adf7E78e0c878790";
+const MakerRegistryAddress = "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55";
 
 const MakerRegistryAbi = [
         {
