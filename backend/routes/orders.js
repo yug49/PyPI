@@ -5,7 +5,6 @@ const axios = require("axios");
 const {
     createWalletClient,
     http,
-    parseEther,
     parseGwei,
     createPublicClient,
 } = require("viem");
@@ -89,26 +88,6 @@ async function signalResolverOrderAccepted(orderId, resolverAddress, details) {
         throw error;
     }
 }
-
-// Define Worldchain Sepolia chain
-const worldchainSepolia = {
-    id: 4801,
-    name: "Worldchain Sepolia",
-    network: "worldchain-sepolia",
-    nativeCurrency: {
-        decimals: 18,
-        name: "Ether",
-        symbol: "ETH",
-    },
-    rpcUrls: {
-        default: {
-            http: ["https://testnet.evm.nodes.onflow.org"],
-        },
-        public: {
-            http: ["https://testnet.evm.nodes.onflow.org"],
-        },
-    },
-};
 
 // Validation middleware
 const validateWalletAddress = (req, res, next) => {

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAccount, useWaitForTransactionReceipt, useWatchContractEvent } from 'wagmi'
 import { useSearchParams } from 'next/navigation'
 import { useCreateOrder, useERC20, useResolverFee, calculateApprovalAmount, COMMON_TOKENS, formatTokenAmount } from '@/lib/useContracts'
+import { useMakerSettings } from '@/lib/useMakerSettings'
 
 import { CONTRACTS } from '@/lib/contracts'
 
@@ -15,6 +16,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   const { address } = useAccount()
   const searchParams = useSearchParams()
   const { createOrder, saveOrderToDatabase, isLoading: isCreatingOrder, error: createOrderError, hash } = useCreateOrder()
+  const { settings: makerSettings } = useMakerSettings()
   
   // Get resolver fee from contract
   const { resolverFee } = useResolverFee()
@@ -27,8 +29,8 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   // Form state - Initialize with URL parameters from scanned QR code
   const [formData, setFormData] = useState({
     amount: searchParams.get('amount') || '',
-    startPrice: '',
-    endPrice: '',
+    startPrice: makerSettings.defaultStartPrice || '',
+    endPrice: makerSettings.defaultEndPrice || '',
     recipientUpiAddress: searchParams.get('upiAddress') || ''
   })
   
@@ -172,6 +174,15 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
       }))
     }
   }, [searchParams])
+
+  // Update form data with default settings when they change
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      startPrice: prev.startPrice || makerSettings.defaultStartPrice || '',
+      endPrice: prev.endPrice || makerSettings.defaultEndPrice || ''
+    }))
+  }, [makerSettings.defaultStartPrice, makerSettings.defaultEndPrice])
 
   // Handle receipt when transaction is confirmed
   useEffect(() => {
@@ -473,9 +484,16 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
 
         {/* Start Price */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Start Price (INR per {selectedToken.symbol})
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              Start Price (INR per {selectedToken.symbol})
+            </label>
+            {makerSettings.defaultStartPrice && formData.startPrice === makerSettings.defaultStartPrice && (
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                Using default
+              </span>
+            )}
+          </div>
           <input
             type="number"
             name="startPrice"
@@ -492,9 +510,16 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
 
         {/* End Price */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            End Price (INR per {selectedToken.symbol})
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              End Price (INR per {selectedToken.symbol})
+            </label>
+            {makerSettings.defaultEndPrice && formData.endPrice === makerSettings.defaultEndPrice && (
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                Using default
+              </span>
+            )}
+          </div>
           <input
             type="number"
             name="endPrice"

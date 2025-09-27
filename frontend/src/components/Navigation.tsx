@@ -31,12 +31,20 @@ export default function Navigation() {
               </Link>
               
               {isConnected && isRegistered && (
-                <Link
-                  href="/maker-dashboard"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                >
-                  Maker Dashboard
-                </Link>
+                <>
+                  <Link
+                    href="/maker-dashboard"
+                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Maker Dashboard
+                  </Link>
+                  <Link
+                    href="/settings"
+                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Settings
+                  </Link>
+                </>
               )}
               
               {isConnected && !isRegistered && (
@@ -68,12 +76,20 @@ export default function Navigation() {
           </Link>
           
           {isConnected && isRegistered && (
-            <Link
-              href="/maker-dashboard"
-              className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              Maker Dashboard
-            </Link>
+            <>
+              <Link
+                href="/maker-dashboard"
+                className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+              >
+                Maker Dashboard
+              </Link>
+              <Link
+                href="/settings"
+                className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+              >
+                Settings
+              </Link>
+            </>
           )}
           
           {isConnected && !isRegistered && (
