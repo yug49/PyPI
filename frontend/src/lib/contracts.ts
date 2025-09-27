@@ -154,7 +154,13 @@ export const CONTRACTS = {
     abi: [
       {
         "type": "constructor",
-        "inputs": [],
+        "inputs": [
+          {
+            "name": "_usdCoinContractAddress",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
         "stateMutability": "nonpayable"
       },
       {
@@ -214,6 +220,25 @@ export const CONTRACTS = {
       },
       {
         "type": "function",
+        "name": "resolveDispute",
+        "inputs": [
+          {
+            "name": "resolver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "to", "type": "address", "internalType": "address" }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "type": "function",
         "name": "s_resolvers",
         "inputs": [
           { "name": "", "type": "address", "internalType": "address" }
@@ -233,12 +258,104 @@ export const CONTRACTS = {
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
+      },
+      {
+        "type": "event",
+        "name": "OwnershipTransferred",
+        "inputs": [
+          {
+            "name": "previousOwner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+          },
+          {
+            "name": "newOwner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+          }
+        ],
+        "anonymous": false
+      },
+      {
+        "type": "error",
+        "name": "OwnableInvalidOwner",
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      },
+      {
+        "type": "error",
+        "name": "OwnableUnauthorizedAccount",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      },
+      {
+        "type": "error",
+        "name": "ResolverRegistry__ResolverAlreadyExists",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "ResolverRegistry__ResolverDoesNotExists",
+        "inputs": []
       }
     ] as const
   },
   ORDER_PROTOCOL: {
     address: "0x4B8331a22a804Dc767498D5A987299A5886087C8" as const,
     abi: [
+      {
+        "type": "constructor",
+        "inputs": [
+          {
+            "name": "_maxOrderTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "_resolverRegistry",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "_relayerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "_maxFullfillmentTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "_resolverFee",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "_makerRegistry",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "_usdCoinContractAddress",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
       {
         "type": "function",
         "name": "PRECISION",
@@ -247,6 +364,29 @@ export const CONTRACTS = {
           { "name": "", "type": "uint256", "internalType": "uint256" }
         ],
         "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "acceptOrder",
+        "inputs": [
+          {
+            "name": "_orderId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "_acceptedPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "_taker",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
       },
       {
         "type": "function",
@@ -281,6 +421,105 @@ export const CONTRACTS = {
           }
         ],
         "stateMutability": "nonpayable"
+      },
+      {
+        "type": "function",
+        "name": "fulfillOrder",
+        "inputs": [
+          {
+            "name": "_orderId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          { "name": "_proof", "type": "string", "internalType": "string" }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "type": "function",
+        "name": "getActiveOrders",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "",
+            "type": "tuple[]",
+            "internalType": "struct OrderProtocol.Order[]",
+            "components": [
+              {
+                "name": "maker",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "taker",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "recipientUpiAddress",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "startPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "acceptedPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "endPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "startTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "acceptedTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "accepted",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "fullfilled",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "getCurrentPrice",
+        "inputs": [
+          {
+            "name": "_orderId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ],
+        "outputs": [
+          { "name": "", "type": "uint256", "internalType": "uint256" }
+        ],
+        "stateMutability": "view"
       },
       {
         "type": "function",
@@ -436,6 +675,42 @@ export const CONTRACTS = {
       },
       {
         "type": "function",
+        "name": "i_makerRegistry",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "address", "internalType": "address" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "i_maxFullfillmentTime",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "uint256", "internalType": "uint256" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "i_maxOrderTime",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "uint256", "internalType": "uint256" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "i_relayerAddress",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "address", "internalType": "address" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
         "name": "i_resolverFee",
         "inputs": [],
         "outputs": [
@@ -443,9 +718,112 @@ export const CONTRACTS = {
         ],
         "stateMutability": "view"
       },
-
-
-
+      {
+        "type": "function",
+        "name": "i_resolverRegistry",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "address", "internalType": "address" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "i_usdCoinContract",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "address", "internalType": "address" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [
+          { "name": "", "type": "address", "internalType": "address" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "renounceOwnership",
+        "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "type": "function",
+        "name": "s_orderIds",
+        "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+        "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "s_orders",
+        "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+        "outputs": [
+          { "name": "maker", "type": "address", "internalType": "address" },
+          { "name": "taker", "type": "address", "internalType": "address" },
+          {
+            "name": "recipientUpiAddress",
+            "type": "string",
+            "internalType": "string"
+          },
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "startPrice", "type": "uint256", "internalType": "uint256" },
+          {
+            "name": "acceptedPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          { "name": "endPrice", "type": "uint256", "internalType": "uint256" },
+          { "name": "startTime", "type": "uint256", "internalType": "uint256" },
+          { "name": "acceptedTime", "type": "uint256", "internalType": "uint256" },
+          { "name": "accepted", "type": "bool", "internalType": "bool" },
+          { "name": "fullfilled", "type": "bool", "internalType": "bool" }
+        ],
+        "stateMutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "type": "event",
+        "name": "OrderAccepted",
+        "inputs": [
+          {
+            "name": "orderId",
+            "type": "bytes32",
+            "indexed": true,
+            "internalType": "bytes32"
+          },
+          {
+            "name": "taker",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+          },
+          {
+            "name": "acceptedPrice",
+            "type": "uint256",
+            "indexed": false,
+            "internalType": "uint256"
+          }
+        ],
+        "anonymous": false
+      },
       {
         "type": "event",
         "name": "OrderCreated",
@@ -495,6 +873,86 @@ export const CONTRACTS = {
           }
         ],
         "anonymous": false
+      },
+      {
+        "type": "event",
+        "name": "OwnershipTransferred",
+        "inputs": [
+          {
+            "name": "previousOwner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+          },
+          {
+            "name": "newOwner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+          }
+        ],
+        "anonymous": false
+      },
+      {
+        "type": "error",
+        "name": "OwnableInvalidOwner",
+        "inputs": [
+          { "name": "owner", "type": "address", "internalType": "address" }
+        ]
+      },
+      {
+        "type": "error",
+        "name": "OwnableUnauthorizedAccount",
+        "inputs": [
+          { "name": "account", "type": "address", "internalType": "address" }
+        ]
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__AlreadyAccepted",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__AlreadyFullfilled",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__InvalidAmount",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__InvalidPrice",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__InvalidToken",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__MaxFullfillmentTimeReached",
+        "inputs": []
+      },
+      { "type": "error", "name": "OrderProtocol__NotAMaker", "inputs": [] },
+      {
+        "type": "error",
+        "name": "OrderProtocol__NotAResolver",
+        "inputs": []
+      },
+      { "type": "error", "name": "OrderProtocol__NotRelayer", "inputs": [] },
+      {
+        "type": "error",
+        "name": "OrderProtocol__OrderDoesNotExists",
+        "inputs": []
+      },
+      {
+        "type": "error",
+        "name": "OrderProtocol__OrderNotAcceptedYet",
+        "inputs": []
       }
     ] as const
   },
