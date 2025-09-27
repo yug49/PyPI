@@ -1,24 +1,33 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-    webpack: (config, { isServer }) => {
-        // Fix for pino-pretty and react-native-async-storage warnings
-        config.resolve.fallback = {
-            ...config.resolve.fallback,
-            "pino-pretty": false,
-            "@react-native-async-storage/async-storage": false,
-        };
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,                // automatically register SW
+  skipWaiting: true,             // activate new SW immediately
+  disable: process.env.NODE_ENV === "development",  // don't use in dev
+  // optional: more fine-grained control with runtimeCaching etc.
+  // scope: '/', sw: 'sw.js', etc.
+});
 
-        if (!isServer) {
-            config.resolve.fallback = {
-                ...config.resolve.fallback,
-                fs: false,
-                net: false,
-                tls: false,
-            };
-        }
+const nextConfig = withPWA({
+  reactStrictMode: true,
+  webpack: (config, { isServer }) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      "pino-pretty": false,
+      "@react-native-async-storage/async-storage": false,
+    };
 
-        return config;
-    },
-};
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+
+    return config;
+  },
+});
 
 module.exports = nextConfig;
