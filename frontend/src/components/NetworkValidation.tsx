@@ -1,16 +1,18 @@
 'use client'
 
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
-import { flowEvmTestnet } from './Providers'
+import { flowEvmTestnet, supportedChains } from './Providers'
 
 export function NetworkValidation({ children }: { children: React.ReactNode }) {
   const { isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
 
-  const isCorrectNetwork = chainId === flowEvmTestnet.id
+  const currentChain = supportedChains.find(chain => chain.id === chainId)
+  const isCorrectNetwork = !!currentChain
 
   const handleSwitchNetwork = () => {
+    // Default to Flow EVM Testnet, but this could be made configurable
     switchChain({ chainId: flowEvmTestnet.id })
   }
 
@@ -33,8 +35,8 @@ export function NetworkValidation({ children }: { children: React.ReactNode }) {
               </div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Wrong Network Detected</h2>
               <p className="text-gray-600 mb-6">
-                This application only works on <strong>Flow EVM Testnet</strong>. 
-                Please switch your wallet to the correct network to continue.
+                This application works on <strong>Flow EVM Testnet</strong> and <strong>Arbitrum Sepolia</strong>. 
+                Please switch your wallet to a supported network to continue.
               </p>
             </div>
 
@@ -46,10 +48,12 @@ export function NetworkValidation({ children }: { children: React.ReactNode }) {
                 Switch to Flow EVM Testnet
               </button>
               
-              <div className="text-sm text-gray-500">
-                <p><strong>Network:</strong> Flow EVM Testnet</p>
-                <p><strong>Chain ID:</strong> 545</p>
-                <p><strong>Currency:</strong> FLOW</p>
+              <div className="text-sm text-gray-500 space-y-2">
+                <div>
+                  <p><strong>Supported Networks:</strong></p>
+                  <p>• Flow EVM Testnet (Chain ID: 545)</p>
+                  <p>• Arbitrum Sepolia (Chain ID: 421614)</p>
+                </div>
               </div>
             </div>
           </div>
