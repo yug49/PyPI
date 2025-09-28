@@ -1,5 +1,29 @@
 {
 	"contracts": {
+		"Counter": {
+			"source": "cadence/contracts/Counter.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"CounterCronTransactionHandler": {
+			"source": "cadence/contracts/CounterCronTransactionHandler.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"CounterLoopTransactionHandler": {
+			"source": "cadence/contracts/CounterLoopTransactionHandler.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"CounterTransactionHandler": {
+			"source": "cadence/contracts/CounterTransactionHandler.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"PYPI": {
 			"source": "cadence/contracts/pypi/main/PYPI.cdc",
 			"aliases": {
@@ -8,12 +32,6 @@
 		},
 		"PYPIAutopayHandler": {
 			"source": "cadence/contracts/pypi/handlers/PYPIAutopayHandler.cdc",
-			"aliases": {
-				"emulator": "f8d6e0586b0a20c7"
-			}
-		},
-		"PYPIBridgeOrderHandler": {
-			"source": "cadence/contracts/pypi/handlers/PYPIBridgeOrderHandler.cdc",
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7"
 			}
@@ -163,11 +181,8 @@
 	},
 	"accounts": {
 		"": {
-			"address": "792105205c0b3f87",
-			"key": {
-				"type": "file",
-				"location": ".pkey"
-			}
+			"address": "179b6b1cb6755e31",
+			"key": "6a2468c7009c134bd1ee586d399e26218a0c971e98abc31b3c8930122faf5f63"
 		},
 		"emulator-account": {
 			"address": "f8d6e0586b0a20c7",
@@ -180,12 +195,15 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
+				"Counter",
+				"CounterTransactionHandler",
+				"CounterLoopTransactionHandler",
+				"CounterCronTransactionHandler",
 				"PYPITypes",
 				"PYPIEvents",
 				"PYPIErrors",
 				"PYPIStorage",
 				"PYPIAutopayHandler",
-				"PYPIBridgeOrderHandler",
 				"PYPIPaymentHandler",
 				"PYPIConfigManager",
 				"PYPI"

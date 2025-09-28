@@ -20,7 +20,6 @@ access(all) contract PYPIErrors {
         access(all) case StorageError
         access(all) case ConfigurationError
         access(all) case SystemError
-        access(all) case InvalidDataType
     }
 
     /// Error messages for PYPI system
@@ -67,8 +66,6 @@ access(all) contract PYPIErrors {
                 return "Configuration error occurred."
             case ErrorCode.SystemError:
                 return "System error occurred."
-            case ErrorCode.InvalidDataType:
-                return "Invalid data type provided for operation."
             default:
                 return "Unknown error occurred."
         }
