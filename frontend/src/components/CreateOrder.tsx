@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAccount, useWaitForTransactionReceipt, useWatchContractEvent } from 'wagmi'
 import { useSearchParams } from 'next/navigation'
-import { useCreateOrder, useERC20, useResolverFee, calculateApprovalAmount, COMMON_TOKENS, formatTokenAmount } from '@/lib/useContracts'
+import { useCreateOrder, useERC20, useResolverFee, calculateApprovalAmount, COMMON_TOKENS, formatTokenAmount, useNetworkContracts, useNetworkToken } from '@/lib/useContracts'
 import { useMakerSettings } from '@/lib/useMakerSettings'
 import { useCoinPrice } from '@/lib/useCoinPrice'
 
@@ -15,6 +15,7 @@ interface CreateOrderProps {
 
 export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
   const { address } = useAccount()
+  const { orderProtocol } = useNetworkContracts()
   const searchParams = useSearchParams()
   const { createOrder, saveOrderToDatabase, isLoading: isCreatingOrder, error: createOrderError, hash } = useCreateOrder()
   const { settings: makerSettings } = useMakerSettings()
@@ -54,8 +55,8 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
     recipientUpiAddress: searchParams.get('upiAddress') || ''
   })
   
-  // Fixed token since only MockUSDC is supported
-  const selectedToken = COMMON_TOKENS[0]
+  // Network-aware token selection
+  const selectedToken = useNetworkToken()
   
   // Token operations
   const { 
@@ -219,7 +220,7 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
         
         // Find the OrderCreated event log
         const orderCreatedLog = receipt.logs.find(log => 
-          log.address?.toLowerCase() === CONTRACTS.ORDER_PROTOCOL.address.toLowerCase() &&
+          log.address?.toLowerCase() === orderProtocol.toLowerCase() &&
           log.topics && log.topics.length > 1
         )
         
@@ -273,14 +274,21 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
         }
       })
       .catch((error) => {
-        console.error('Failed to save order to database:', error)
+        console.error('❌ Failed to save order to database:', error)
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          orderId: actualOrderId,
+          transactionHash: receipt.transactionHash,
+          blockNumber: Number(receipt.blockNumber)
+        })
         
         // Still proceed to success if the blockchain transaction was successful
         // The user's order was created on-chain even if database save failed
         console.log('⚠️ Proceeding to success despite database error - order exists on blockchain')
         setOrderId(actualOrderId)
         setStep('success')
-        setStatusMessage('Order created successfully on blockchain! (Database sync in progress)')
+        setStatusMessage(`⚠️ Order created on blockchain but database save failed: ${error.message}`)
         
         if (onOrderCreated) {
           onOrderCreated(actualOrderId)
@@ -291,7 +299,8 @@ export default function CreateOrder({ onOrderCreated }: CreateOrderProps) {
 
   // Listen for OrderFullfilled events
   useWatchContractEvent({
-    ...CONTRACTS.ORDER_PROTOCOL,
+    address: orderProtocol as `0x${string}`,
+    abi: CONTRACTS.ORDER_PROTOCOL.abi,
     eventName: 'OrderFullfilled',
     enabled: orderId !== '' && step === 'success', // Only listen when we have an order ID and are in success state
     onLogs(logs) {
