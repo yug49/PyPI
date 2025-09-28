@@ -73,9 +73,22 @@ const DutchAuction: React.FC<DutchAuctionProps> = ({
     const [isFulfilled, setIsFulfilled] = useState(false);
     const [fulfillmentData, setFulfillmentData] = useState<FulfillmentData | null>(null);
     const [acceptedBy, setAcceptedBy] = useState<string | null>(null);
+    const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
+    const [paymentData, setPaymentData] = useState<{ payoutId: string; timestamp: string } | null>(null);
+    const [contractProcessing, setContractProcessing] = useState(false);
 
     const socketRef = useRef<Socket | null>(null);
     const startTimeRef = useRef<number>(0);
+
+    // Debug effect to track payment confirmation state changes
+    useEffect(() => {
+        console.log("🔍 Payment state changed:", {
+            isPaymentConfirmed,
+            paymentData,
+            contractProcessing,
+            isFulfilled
+        });
+    }, [isPaymentConfirmed, paymentData, contractProcessing, isFulfilled]);
 
     useEffect(() => {
         // Initialize Socket.IO connection
@@ -144,13 +157,42 @@ const DutchAuction: React.FC<DutchAuctionProps> = ({
             }
         });
 
+        // NEW: Handle early payment confirmation
+        socket.on("paymentConfirmed", (data) => {
+            console.log("� Received paymentConfirmed event:", data);
+            console.log("🔍 Current orderId:", orderId);
+            
+            if (data.orderId === orderId) {
+                console.log("💰 Payment confirmed for matching order:", data);
+                setIsPaymentConfirmed(true);
+                setPaymentData({
+                    payoutId: data.payoutId,
+                    timestamp: data.timestamp
+                });
+                setContractProcessing(true); // Show that contract processing is in progress
+                console.log("✅ Payment confirmation state updated");
+            } else {
+                console.log("❌ OrderId mismatch. Received:", data.orderId, "Expected:", orderId);
+            }
+        });
+
+        // Handle contract fulfillment failure
+        socket.on("contractFulfillmentFailed", (data) => {
+            if (data.orderId === orderId) {
+                console.log("❌ Contract fulfillment failed:", data);
+                setContractProcessing(false);
+                // Payment is still confirmed, just contract call failed
+            }
+        });
+
         socket.on("orderFulfilled", (data) => {
             if (data.orderId === orderId) {
                 console.log("🎉 Order fulfilled:", data);
                 setIsFulfilled(true);
+                setContractProcessing(false); // Contract processing completed
                 setFulfillmentData({
                     transactionId: data.transactionHash || '',
-                    payoutId: data.payoutId || '',
+                    payoutId: data.transactionId || paymentData?.payoutId || '',
                     status: 'fulfilled',
                     utr: data.utr,
                     amount: data.amount || 0,
@@ -394,22 +436,68 @@ const DutchAuction: React.FC<DutchAuctionProps> = ({
                     </div>
                 )}
 
+                {/* DEBUG SECTION - TEMPORARY */}
+                <div className="p-2 bg-gray-100 border border-gray-300 rounded text-xs">
+                    <p>Debug States: isPaymentConfirmed={String(isPaymentConfirmed)}, paymentData={paymentData ? 'exists' : 'null'}, contractProcessing={String(contractProcessing)}</p>
+                </div>
+
+                {/* Payment Confirmation Details (NEW OPTIMIZATION) */}
+                {isPaymentConfirmed && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                            💰 Payment Confirmed!
+                            {contractProcessing && <span className="ml-2 text-orange-600">(Processing on blockchain...)</span>}
+                        </h3>
+                        {paymentData ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-gray-600">Payout ID:</p>
+                                    <p className="font-bold text-blue-700">{paymentData.payoutId}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-600">Confirmed At:</p>
+                                    <p className="text-xs">{new Date(paymentData.timestamp).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-600">
+                                <p>Payment confirmation received, loading details...</p>
+                            </div>
+                        )}
+                        {contractProcessing && (
+                            <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded">
+                                <div className="flex items-center">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
+                                    <p className="text-orange-700 text-sm">
+                                        Payment verified with RazorPayX! Processing blockchain transaction...
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Fulfillment Details */}
                 {isFulfilled && fulfillmentData && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h3 className="text-lg font-semibold text-blue-800 mb-2">🎉 Order Fulfilled!</h3>
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <h3 className="text-lg font-semibold text-green-800 mb-2">🎉 Order Fully Completed!</h3>
+                        <div className="mb-3 p-3 bg-green-100 border border-green-300 rounded">
+                            <p className="text-green-800 text-sm font-medium">
+                                ✅ Payment processed & blockchain transaction confirmed!
+                            </p>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                                 <p className="text-gray-600">Payout ID:</p>
-                                <p className="font-bold text-blue-700">{fulfillmentData.payoutId}</p>
+                                <p className="font-bold text-green-700">{fulfillmentData.payoutId}</p>
                             </div>
                             <div>
-                                <p className="text-gray-600">Transaction:</p>
+                                <p className="text-gray-600">Blockchain TX:</p>
                                 <p className="font-mono text-xs break-all">{fulfillmentData.transactionId}</p>
                             </div>
                             <div>
                                 <p className="text-gray-600">Amount:</p>
-                                <p className="font-bold text-blue-700">{formatPrice(fulfillmentData.amount)}</p>
+                                <p className="font-bold text-green-700">{formatPrice(fulfillmentData.amount)}</p>
                             </div>
                             <div>
                                 <p className="text-gray-600">Status:</p>
@@ -424,7 +512,7 @@ const DutchAuction: React.FC<DutchAuctionProps> = ({
                                 </>
                             )}
                             <div>
-                                <p className="text-gray-600">Timestamp:</p>
+                                <p className="text-gray-600">Completed At:</p>
                                 <p className="text-xs">{new Date(fulfillmentData.timestamp).toLocaleString()}</p>
                             </div>
                         </div>
