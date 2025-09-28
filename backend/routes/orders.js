@@ -9,6 +9,11 @@ const {
     createPublicClient,
 } = require("viem");
 const { privateKeyToAccount } = require("viem/accounts");
+const {
+    getDefaultNetworkConfig,
+    getContractAddress,
+    createChainConfig,
+} = require("../config/networks");
 
 // Store resolver callbacks (in production, use Redis or database)
 const resolverCallbacks = new Map();
@@ -114,6 +119,7 @@ const validateOrderData = (req, res, next) => {
         recipientUpiAddress,
         transactionHash,
         blockNumber,
+        network,
     } = req.body;
 
     const errors = [];
@@ -154,6 +160,11 @@ const validateOrderData = (req, res, next) => {
 
     if (!blockNumber || typeof blockNumber !== "number" || blockNumber < 0) {
         errors.push("blockNumber is required and must be a positive number");
+    }
+
+    // Validate network field - optional but if provided must be valid
+    if (network && !["flow", "arbitrum"].includes(network)) {
+        errors.push("network must be either 'flow' or 'arbitrum'");
     }
 
     if (errors.length > 0) {
@@ -227,6 +238,7 @@ router.post("/", validateWalletAddress, validateOrderData, async (req, res) => {
             recipientUpiAddress,
             transactionHash,
             blockNumber,
+            network,
         } = req.body;
 
         // Check if order already exists
@@ -258,8 +270,8 @@ router.post("/", validateWalletAddress, validateOrderData, async (req, res) => {
             recipientUpiAddress: recipientUpiAddress.trim(),
             transactionHash,
             blockNumber,
+            network: network || "flow", // Default to flow for backward compatibility
         });
-
         await newOrder.save();
 
         res.status(201).json({
@@ -402,6 +414,15 @@ router.put("/:orderId/status", async (req, res) => {
         }
 
         order.status = status;
+
+        // Reset auction-related fields when setting status to "created"
+        if (status === "created") {
+            order.auctionActive = false;
+            order.auctionStartTime = null;
+            order.auctionEndTime = null;
+            order.currentPrice = null;
+        }
+
         await order.save();
 
         res.json({
@@ -539,40 +560,36 @@ router.post("/:orderId/accept", async (req, res) => {
             });
         }
 
-        // Read order details from blockchain only (no database involvement)
+        // Get order from database to determine network
+        const order = await Order.findByOrderId(orderId);
+        if (!order) {
+            return res.status(404).json({
+                error: "Order not found",
+                message: `Order with ID ${orderId} not found in database`,
+            });
+        }
+
+        // Read order details from blockchain using the correct network
         let orderStartPrice, orderEndPrice;
         try {
-            console.log(`📋 Reading order ${orderId} from blockchain...`);
+            console.log(
+                `📋 Reading order ${orderId} from blockchain on ${order.network} network...`
+            );
 
             const { createPublicClient, http, defineChain } = require("viem");
+            const { getNetworkConfig } = require("../config/networks");
 
-            // Define Flow EVM Testnet chain
-            const flowEvmTestnet = defineChain({
-                id: 545,
-                name: "Flow EVM Testnet",
-                nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
-                rpcUrls: {
-                    default: {
-                        http: ["https://testnet.evm.nodes.onflow.org"],
-                    },
-                },
-                blockExplorers: {
-                    default: {
-                        name: "Flow EVM Explorer",
-                        url: "https://evm-testnet.flowscan.io",
-                    },
-                },
-                testnet: true,
-            });
-
-            const rpcUrl =
-                process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
-            const contractAddress =
-                process.env.CONTRACT_ADDRESS ||
-                "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
+            // Use network from database order
+            const networkConfig = getNetworkConfig(order.network);
+            const rpcUrl = networkConfig.rpcUrl;
+            const contractAddress = getContractAddress(
+                "OrderProtocol",
+                order.network
+            );
+            const chainConfig = createChainConfig(order.network);
 
             const publicClient = createPublicClient({
-                chain: flowEvmTestnet,
+                chain: chainConfig,
                 transport: http(rpcUrl),
             });
 
@@ -747,49 +764,35 @@ router.post("/:orderId/accept", async (req, res) => {
         }
 
         console.log(
-            `Relayer accepting order ${orderId} at price ${acceptedPrice} for resolver ${resolverAddress}`
+            `Relayer accepting order ${orderId} at price ${acceptedPrice} for resolver ${resolverAddress} on ${order.network} network`
         );
 
-        // Set up blockchain connection with relayer's private key using viem
-        const rpcUrl =
-            process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org";
+        // Use network from database order
+        const { getNetworkConfig } = require("../config/networks");
+        const networkConfig = getNetworkConfig(order.network);
+        const rpcUrl = networkConfig.rpcUrl;
         const relayerPrivateKey =
             process.env.RELAYER_PRIVATE_KEY ||
             "6c1db0c528e7cac4202419249bc98d3df647076707410041e32f6e9080906bfb";
-        const contractAddress =
-            process.env.CONTRACT_ADDRESS ||
-            "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
+        const contractAddress = getContractAddress(
+            "OrderProtocol",
+            order.network
+        );
+        const chainConfig = createChainConfig(order.network);
 
         // Create account from private key
         const account = privateKeyToAccount(`0x${relayerPrivateKey}`);
 
-        // Define Flow EVM Testnet chain
-        const flowEvmTestnet = {
-            id: 545,
-            name: "Flow EVM Testnet",
-            nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
-            rpcUrls: {
-                default: { http: [rpcUrl] },
-            },
-            blockExplorers: {
-                default: {
-                    name: "Flow EVM Explorer",
-                    url: "https://evm-testnet.flowscan.io",
-                },
-            },
-            testnet: true,
-        };
-
         // Create public client for reading blockchain data
         const publicClient = createPublicClient({
-            chain: flowEvmTestnet,
+            chain: chainConfig,
             transport: http(rpcUrl),
         });
 
         // Create wallet client for sending transactions
         const walletClient = createWalletClient({
             account,
-            chain: flowEvmTestnet,
+            chain: chainConfig,
             transport: http(rpcUrl),
         });
 
@@ -1028,20 +1031,15 @@ router.post("/:orderId/start-auction", async (req, res) => {
         // Start Dutch auction
         const auctionManager = req.app.get("auctionManager");
 
-        // Convert wei-formatted prices to decimal for auction display
-        // Database stores prices in wei format (e.g., "95000000000000000000")
-        // but auction needs decimal format (e.g., 95.0)
-        // Use BigInt for precision then convert to number
-        const startPriceWei = BigInt(order.startPrice);
-        const endPriceWei = BigInt(order.endPrice);
-        const divisor = BigInt(10 ** 18);
-
-        const startPriceDecimal = Number(startPriceWei / divisor);
-        const endPriceDecimal = Number(endPriceWei / divisor);
+        // Convert decimal price strings to numbers for auction display
+        // Database stores prices as decimal strings (e.g., "93.07", "86.87")
+        // Parse them directly as floats for the auction manager
+        const startPriceDecimal = parseFloat(order.startPrice);
+        const endPriceDecimal = parseFloat(order.endPrice);
 
         console.log(`🔄 Converting prices for auction:
-            Start: ${order.startPrice} wei → ${startPriceDecimal} INR
-            End: ${order.endPrice} wei → ${endPriceDecimal} INR`);
+            Start: ${order.startPrice} → ${startPriceDecimal} INR
+            End: ${order.endPrice} → ${endPriceDecimal} INR`);
 
         const auction = auctionManager.createAuction(
             orderId,
@@ -1141,12 +1139,21 @@ router.post("/:orderId/fulfill", async (req, res) => {
             });
         }
 
-        // Step 1: Get order details from smart contract
-        const orderDetails = await getOrderFromContract(orderId);
+        // Get order from database to determine network
+        const order = await Order.findByOrderId(orderId);
+        if (!order) {
+            return res.status(404).json({
+                error: "Order not found",
+                message: `Order with ID ${orderId} not found in database`,
+            });
+        }
+
+        // Step 1: Get order details from smart contract using the correct network
+        const orderDetails = await getOrderFromContract(orderId, order.network);
         if (!orderDetails) {
             return res.status(404).json({
                 error: "Order not found",
-                message: `Order ${orderId} does not exist on contract`,
+                message: `Order ${orderId} does not exist on ${order.network} contract`,
             });
         }
 
@@ -1241,15 +1248,49 @@ router.post("/:orderId/fulfill", async (req, res) => {
 
         console.log(`✅ Transaction validation passed`);
 
-        // Step 4: Call fulfillOrder on smart contract
+        // Step 4: Emit early payment confirmation to frontend (NEW OPTIMIZATION)
+        console.log(
+            `🚀 Emitting early payment confirmation for order ${orderId}...`
+        );
+        const io = req.app.get("socketio");
+        if (io) {
+            io.emit("paymentConfirmed", {
+                orderId,
+                payoutId: transactionId,
+                status: "payment_confirmed",
+                timestamp: new Date().toISOString(),
+                message:
+                    "Payment verified with RazorPayX - processing blockchain transaction...",
+            });
+        }
+
+        // Step 5: Call fulfillOrder on smart contract (after early notification)
         const fulfillmentResult = await fulfillOrderOnContract(
             orderId,
-            transactionId
+            transactionId,
+            order.network
         );
         if (!fulfillmentResult.success) {
+            // Even if contract call fails, we've already confirmed payment to user
+            console.error(
+                `❌ Contract fulfillment failed for order ${orderId}: ${fulfillmentResult.message}`
+            );
+
+            // Emit contract failure event
+            if (io) {
+                io.emit("contractFulfillmentFailed", {
+                    orderId,
+                    payoutId: transactionId,
+                    error: fulfillmentResult.message,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+
             return res.status(500).json({
                 error: "Contract fulfillment failed",
                 message: fulfillmentResult.message,
+                paymentConfirmed: true, // Payment was confirmed even if contract failed
+                payoutId: transactionId,
             });
         }
 
@@ -1258,8 +1299,7 @@ router.post("/:orderId/fulfill", async (req, res) => {
             `📝 Transaction hash: ${fulfillmentResult.transactionHash}`
         );
 
-        // Emit fulfillment event via Socket.IO
-        const io = req.app.get("socketio");
+        // Emit final fulfillment event via Socket.IO
         if (io) {
             io.emit("orderFulfilled", {
                 orderId,
@@ -1288,29 +1328,22 @@ router.post("/:orderId/fulfill", async (req, res) => {
 /**
  * Get order details from smart contract
  */
-async function getOrderFromContract(orderId) {
+async function getOrderFromContract(orderId, networkName = "flow") {
     try {
-        const rpcUrl = process.env.RPC_URL;
-        const contractAddress = process.env.CONTRACT_ADDRESS;
+        const { getNetworkConfig } = require("../config/networks");
+
+        // Get network configuration for specified network
+        const networkConfig = getNetworkConfig(networkName);
+        const rpcUrl = networkConfig.rpcUrl;
+        const contractAddress = getContractAddress(
+            "OrderProtocol",
+            networkName
+        );
+        const chainConfig = createChainConfig(networkName);
 
         // Create public client for reading blockchain data
         const publicClient = createPublicClient({
-            chain: {
-                id: 4801,
-                name: "Worldchain Sepolia",
-                network: "worldchain-sepolia",
-                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                rpcUrls: {
-                    default: { http: [rpcUrl] },
-                    public: { http: [rpcUrl] },
-                },
-                blockExplorers: {
-                    default: {
-                        name: "Explorer",
-                        url: "https://testnet.evm.nodes.onflow.org",
-                    },
-                },
-            },
+            chain: chainConfig,
             transport: http(rpcUrl),
         });
 
@@ -1561,43 +1594,35 @@ function validateTransaction(orderDetails, payoutDetails) {
 /**
  * Call fulfillOrder function on smart contract
  */
-async function fulfillOrderOnContract(orderId, proof) {
+async function fulfillOrderOnContract(orderId, proof, networkName = "flow") {
     try {
-        const rpcUrl = process.env.RPC_URL;
-        const contractAddress = process.env.CONTRACT_ADDRESS;
+        // Get network configuration for specified network
+        const { getNetworkConfig } = require("../config/networks");
+        const networkConfig = getNetworkConfig(networkName);
+
+        const rpcUrl = networkConfig.rpcUrl;
+        const contractAddress = getContractAddress(
+            "OrderProtocol",
+            networkName
+        );
         const relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY;
 
-        // Chain configuration for Flow EVM Testnet
-        const flowEvmTestnet = {
-            id: 545,
-            name: "Flow EVM Testnet",
-            network: "flow-evm-testnet",
-            nativeCurrency: { name: "FLOW", symbol: "FLOW", decimals: 18 },
-            rpcUrls: {
-                default: { http: [rpcUrl] },
-                public: { http: [rpcUrl] },
-            },
-            blockExplorers: {
-                default: {
-                    name: "Flow EVM Explorer",
-                    url: "https://evm-testnet.flowscan.io",
-                },
-            },
-        };
+        // Create chain configuration using the network config
+        const chainConfig = createChainConfig(networkName);
 
         // Create account from private key
         const account = privateKeyToAccount(`0x${relayerPrivateKey}`);
 
         // Create public client for reading blockchain data
         const publicClient = createPublicClient({
-            chain: flowEvmTestnet,
+            chain: chainConfig,
             transport: http(rpcUrl),
         });
 
         // Create wallet client for sending transactions
         const walletClient = createWalletClient({
             account,
-            chain: flowEvmTestnet,
+            chain: chainConfig,
             transport: http(rpcUrl),
         });
 

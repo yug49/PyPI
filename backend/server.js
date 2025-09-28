@@ -198,6 +198,32 @@ app.get("/health", (req, res) => {
     res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
+// Test endpoint to emit payment confirmation
+app.get("/test-payment-confirmation/:orderId", (req, res) => {
+    const { orderId } = req.params;
+    console.log(`🧪 TEST: Emitting payment confirmation for order ${orderId}`);
+
+    io.emit("paymentConfirmed", {
+        orderId,
+        payoutId: "test_payout_12345",
+        status: "payment_confirmed",
+        timestamp: new Date().toISOString(),
+        message:
+            "TEST: Payment verified with RazorPayX - processing blockchain transaction...",
+    });
+
+    res.json({
+        success: true,
+        message: `Payment confirmation event emitted for order ${orderId}`,
+        data: {
+            orderId,
+            payoutId: "test_payout_12345",
+            status: "payment_confirmed",
+            timestamp: new Date().toISOString(),
+        },
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

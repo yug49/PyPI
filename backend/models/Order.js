@@ -106,6 +106,12 @@ const orderSchema = new mongoose.Schema(
                 message: "Invalid acceptedBy address format",
             },
         },
+        network: {
+            type: String,
+            enum: ["flow", "arbitrum"],
+            default: "flow", // Default to Flow for backward compatibility
+            index: true,
+        },
         createdAt: {
             type: Date,
             default: Date.now,
@@ -152,6 +158,7 @@ orderSchema.methods.toFormattedJSON = function () {
         acceptedPrice: this.acceptedPrice,
         acceptedAt: this.acceptedAt,
         acceptedBy: this.acceptedBy,
+        network: this.network,
         createdAt: this.createdAt,
         updatedAt: this.updatedAt,
     };
