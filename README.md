@@ -14,7 +14,115 @@
 - **💸 Low Fees**: Competitive resolver fees with transparent pricing
 - **🌐 Multi-Network**: Deployed on Arbitrum Sepolia and Flow EVM Testnet
 
-## 🏗️ System Architecture
+## � Tracks Targeted
+
+## FLOW 
+
+### 1️⃣ Best Killer App on Flow ($6,000)
+
+**Goal of the Track**: Build a consumer-oriented app on Flow that demonstrates mass adoption potential, usability, and a seamless user experience.
+
+**Integration in this project**:
+
+**Flow EVM Testnet Deployment**:
+The README explicitly mentions that the smart contracts are deployed on Flow EVM Testnet (OrderProtocol.sol). This satisfies the requirement of running transactions on Flow.
+
+**Consumer-Facing UX**:
+- Frontend is PWA-enabled with QR scanning for UPI payments.
+- Makers can easily create orders, monitor Dutch auctions in real-time, and receive INR in their accounts.
+- The mobile-first interface makes the experience seamless and intuitive, targeting mass adoption.
+
+**Practical Use Case**:
+By enabling conversion of USDC/PyUSD → INR via UPI, the project directly addresses a real-world payment problem for consumers in India. This aligns with the "killer app" criteria of providing significant utility to everyday users.
+
+**Summary**:
+The Flow track is integrated via smart contract deployment on Flow, combined with a mobile-first frontend that allows consumers to use PYUSD/USDC to get INR instantly. The project demonstrates real-world, user-friendly payment solutions leveraging Flow's blockchain capabilities.
+
+## Fluence
+
+### 2️⃣ Best Use of Fluence Virtual Servers ($5,000)
+
+**Goal of the Track**: Demonstrate a working project using CPU-only VMs from Fluence for AI applications or backend services that are efficient and deployable without GPUs.
+
+**Integration in this project**:
+
+**Backend and Resolver Bot Deployment**:
+The project is designed with a Node.js backend (backend/) and a resolver bot (resolver-bot/) that can run in lightweight server environments. Both components can easily run on CPU-only VMs, which aligns with the Fluence requirement.
+
+- Backend handles API requests, Dutch auction logic, and database operations.
+- Resolver bot monitors auctions and interacts with RazorpayX to process UPI payments.
+
+**Dockerization**:
+The project provides a docker-compose.yml for containerized deployment of frontend, backend, and resolver bot. This ensures easy setup on Fluence virtual servers without GPU dependencies.
+
+**Automated Settlement Logic**:
+The resolver bot implements automated payment processing, making this project a CPU-efficient real-time service. It can run inference or monitoring tasks for auction orders efficiently on small VMs, demonstrating "impactful use" of virtual server resources.
+
+**Summary**:
+The Fluence prize track is addressed by deploying the backend, resolver bot, and possibly the smart contract interaction scripts on Fluence CPU-only VMs, showing efficient server-side operations and live transaction processing without relying on GPUs.
+
+## Paypal
+
+### 3️⃣ 🥇 Grand Prize (Best Overall Transformative Use of PYUSD) — $4,500
+
+**Goal of the Track**:
+Awarded to the project that demonstrates a powerful and scalable real-world use case for PYUSD, setting a new benchmark in digital payments. It should highlight how PYUSD unlocks unique value—whether via remittances, commerce, or new economic opportunities.
+
+**Integration in this project**:
+
+**Blockchain-to-UPI Payments at Scale**:
+Our project enables direct conversion of PYUSD into Indian Rupees (INR) through UPI, India's most widely used payment system. This bridges the gap between blockchain payments and traditional finance, allowing real-world spending of PYUSD without intermediaries.
+
+- **Dutch Auction Mechanism**: Ensures fair, market-driven exchange rates for converting PYUSD → INR.
+- **Trustless Settlement**: Smart contracts hold PYUSD in escrow, ensuring transparent and secure execution.
+- **Global Accessibility**: Anyone holding PYUSD can now pay or remit funds into India seamlessly, unlocking cross-border commerce and remittance flows.
+
+**Automated Resolver Network**:
+A network of resolvers competes to settle payments using RazorpayX. This model ensures scalability, fair pricing, and faster settlements—showcasing how PYUSD can power decentralized payment infrastructure.
+
+**Summary**:
+The project demonstrates a transformative, real-world use case for PYUSD by connecting it to one of the largest real-time retail payment systems (UPI). This sets a new benchmark for digital stablecoin utility in developing markets.
+
+### PYUSD Consumer Champion (Best Consumer-Focused Payments Experience) — $3,500
+
+**Goal of the Track**:
+Recognize the project that builds the most seamless and engaging consumer payment experience with PYUSD, especially for real-world microtransactions, cross-border settlements, or programmable subscriptions.
+
+**Integration in this project**:
+
+**Seamless User Flow for Consumers**:
+- **Mobile-first PWA**: The frontend is designed as a Progressive Web App (PWA) so users can access it from mobile devices without installing an app.
+- **QR Code Payments**: Makers simply scan or upload UPI QR codes, reducing friction in onboarding and payment flows.
+- **Instant INR Credit**: Consumers receive INR directly into their UPI-linked bank account, making PYUSD practically usable for daily payments.
+
+**Real-time Updates & UX**:
+- **Socket.IO integration** gives consumers real-time auction updates, improving transparency and trust.
+- **Clear Pricing with Auctions**: The Dutch auction format ensures users always get a fair and transparent exchange rate, enhancing confidence in using PYUSD for payments.
+
+**Summary**:
+By creating a consumer-first payment journey—from wallet connection to INR settlement—the project shows how PYUSD can become mainstream in everyday transactions in India, a market with 300M+ UPI users.
+
+### PYUSD Possibilities Prize (Most Innovative Use Case of PYUSD) — $2,000
+
+**Goal of the Track**:
+Celebrate projects that think outside the wallet and apply PYUSD in unexpected but impactful ways—whether in gaming, education, social, or financial apps.
+
+**Integration in this project**:
+
+**Novel Dutch Auction Settlement for Stablecoin → Fiat Conversion**:
+Instead of fixed rates or centralized exchanges, we designed a Dutch auction engine for pricing PYUSD conversions. This mechanism is rarely applied in stablecoin-to-fiat transfers and ensures decentralized, transparent price discovery.
+
+**Decentralized Resolver Network**:
+The project introduces the idea of resolver bots—independent entities that compete to process UPI payments using PYUSD escrow. This creates a new market-driven ecosystem of payment processors, incentivized through resolver fees.
+
+**Cross-Network & Composability**:
+- Deployed on Arbitrum Sepolia and Flow EVM Testnet.
+- Open-source smart contracts allow developers to extend and build new payment modules on top of our system (e.g., subscriptions, payroll, or remittance services).
+
+**Summary**:
+The project's auction-based settlement + decentralized resolver model is a completely new way of using PYUSD in payments. It highlights an innovative design space for programmable money—unlocking potential beyond simple transfers.
+
+## �🏗️ System Architecture
 
 ### High-Level Architecture
 ```mermaid
@@ -577,9 +685,9 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) file for 
 
 ## 📞 Support & Contact
 
-- **Developer**: Yug Agarwal
+- **Developer**: Yug Agarwal, Samkit Soni, Kaushtabh Agrawal
 - **GitHub**: [@yug49](https://github.com/yug49)
-- **Project Repository**: [ETH-FLOW-BridgeOf-PyUSD](https://github.com/yug49/ETH-FLOW-BridgeOf-PyUSD)
+- **Project Repository**: [PyPI](https://github.com/yug49/PyPI)
 
 ## 🏆 Acknowledgments
 
