@@ -1,4 +1,8 @@
-const OrderProtocolAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a";
+const OrderProtocolAddress = "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a"; // Flow EVM Testnet (default)
+const OrderProtocolAddresses = {
+    flow: "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a",
+    arbitrum: "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2"
+};
 
 const OrderProtocolAbi = [
         {
@@ -727,4 +731,4 @@ const OrderProtocolAbi = [
         }
     ];
     
-export { OrderProtocolAddress, OrderProtocolAbi };
+export { OrderProtocolAddress, OrderProtocolAddresses, OrderProtocolAbi };
