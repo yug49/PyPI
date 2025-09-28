@@ -1,4 +1,8 @@
-const ResolverRegistryAddress = "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2";
+const ResolverRegistryAddress = "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2"; // Flow EVM Testnet (default)
+const ResolverRegistryAddresses = {
+    flow: "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2",
+    arbitrum: "0xAC49Bd1e5877EAB0529cB9E3beaAAAF3dF67DE9f"
+};
 
 const ResolverRegistryABI = [
         {
@@ -161,4 +165,4 @@ const ResolverRegistryABI = [
         }
     ];
 
-export { ResolverRegistryAddress, ResolverRegistryABI };
+export { ResolverRegistryAddress, ResolverRegistryAddresses, ResolverRegistryABI };
