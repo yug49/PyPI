@@ -1,19 +1,62 @@
 'use client'
 
-import { useAccount, useWriteContract, useReadContract } from 'wagmi'
-import { CONTRACTS } from './contracts'
+import { useAccount, useWriteContract, useReadContract, useChainId } from 'wagmi'
+import { CONTRACTS, getContractAddressForNetwork } from './contracts'
 import { isAddress, parseUnits, formatUnits, Address } from 'viem'
 import { useMemo, useState, useCallback, useEffect } from 'react'
+import { getNetworkTypeFromChainId } from './networkUtils'
 
-// Common tokens for testing (Flow EVM Testnet)
-export const COMMON_TOKENS = [
-  {
-    address: '0xAC49Bd1e5877EAB0529cB9E3beaAAAF3dF67DE9f' as const,
-    name: 'Mock USDC',
-    symbol: 'USDC',
-    decimals: 6
+// Hook to get current network contract addresses
+export function useNetworkContracts() {
+  const chainId = useChainId()
+  const network = getNetworkTypeFromChainId(chainId) || 'flow'
+  
+  return useMemo(() => ({
+    orderProtocol: getContractAddressForNetwork('ORDER_PROTOCOL', network),
+    makerRegistry: getContractAddressForNetwork('MAKER_REGISTRY', network),
+    resolverRegistry: getContractAddressForNetwork('RESOLVER_REGISTRY', network),
+    network
+  }), [network])
+}
+
+// Common tokens for testing - network aware
+export const getCommonTokens = (network: 'flow' | 'arbitrum' = 'flow') => {
+  if (network === 'arbitrum') {
+    return [
+      {
+        address: '0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1' as const,
+        name: 'PyUSD',
+        symbol: 'PYUSD',
+        decimals: 6
+      }
+    ];
   }
-]
+  return [
+    {
+      address: '0xAC49Bd1e5877EAB0529cB9E3beaAAAF3dF67DE9f' as const,
+      name: 'Mock USDC',
+      symbol: 'USDC',
+      decimals: 6
+    }
+  ];
+};
+
+// Backward compatibility
+export const COMMON_TOKENS = getCommonTokens('flow');
+
+// Network-aware token hook
+export function useNetworkToken() {
+  const { chainId } = useAccount()
+  
+  const getCurrentToken = () => {
+    if (chainId === 421614) { // Arbitrum Sepolia
+      return getCommonTokens('arbitrum')[0]
+    }
+    return getCommonTokens('flow')[0] // Default to Flow
+  }
+  
+  return getCurrentToken()
+}
 
 interface OrderData {
   amount: string;
@@ -24,8 +67,10 @@ interface OrderData {
 
 // Hook to read resolver fee from contract
 export function useResolverFee() {
+  const { orderProtocol } = useNetworkContracts()
   const { data: resolverFee, isLoading, error } = useReadContract({
-    ...CONTRACTS.ORDER_PROTOCOL,
+    address: orderProtocol as Address,
+    abi: CONTRACTS.ORDER_PROTOCOL.abi,
     functionName: 'i_resolverFee',
     query: {
       staleTime: 1000 * 60 * 10, // 10 minutes - fee rarely changes
@@ -77,8 +122,10 @@ export function calculateApprovalAmount(
 export function useMakerDetails(makerAddress: string) {
   const isValidAddress = useMemo(() => isAddress(makerAddress), [makerAddress])
   
+  const { makerRegistry } = useNetworkContracts()
   const { data: isRegistered, isLoading: isLoadingRegistered, error: registeredError } = useReadContract({
-    ...CONTRACTS.MAKER_REGISTRY,
+    address: makerRegistry as Address,
+    abi: CONTRACTS.MAKER_REGISTRY.abi,
     functionName: 'isMaker',
     args: isValidAddress ? [makerAddress as `0x${string}`] : undefined,
     query: { 
@@ -94,7 +141,8 @@ export function useMakerDetails(makerAddress: string) {
   })
 
   const { data: isForeigner, isLoading: isLoadingForeigner } = useReadContract({
-    ...CONTRACTS.MAKER_REGISTRY,
+    address: makerRegistry as Address,
+    abi: CONTRACTS.MAKER_REGISTRY.abi,
     functionName: 's_isForiegner',
     args: isValidAddress ? [makerAddress as `0x${string}`] : undefined,
     query: { 
@@ -104,7 +152,8 @@ export function useMakerDetails(makerAddress: string) {
   })
 
   const { data: upiAddress, isLoading: isLoadingUpi } = useReadContract({
-    ...CONTRACTS.MAKER_REGISTRY,
+    address: makerRegistry as Address,
+    abi: CONTRACTS.MAKER_REGISTRY.abi,
     functionName: 's_upiAddress',
     args: isValidAddress ? [makerAddress as `0x${string}`] : undefined,
     query: { 
@@ -114,7 +163,8 @@ export function useMakerDetails(makerAddress: string) {
   })
 
   const { data: proof, isLoading: isLoadingProof } = useReadContract({
-    ...CONTRACTS.MAKER_REGISTRY,
+    address: makerRegistry as Address,
+    abi: CONTRACTS.MAKER_REGISTRY.abi,
     functionName: 's_proof',
     args: isValidAddress ? [makerAddress as `0x${string}`] : undefined,
     query: { 
@@ -135,9 +185,11 @@ export function useMakerDetails(makerAddress: string) {
 // Hook for checking resolver status with better caching
 export function useResolverStatus(resolverAddress: string) {
   const isValidAddress = useMemo(() => isAddress(resolverAddress), [resolverAddress])
+  const { resolverRegistry } = useNetworkContracts()
 
   const { data: isResolver, isLoading, error } = useReadContract({
-    ...CONTRACTS.RESOLVER_REGISTRY,
+    address: resolverRegistry as Address,
+    abi: CONTRACTS.RESOLVER_REGISTRY.abi,
     functionName: 'isResolver',
     args: isValidAddress ? [resolverAddress as `0x${string}`] : undefined,
     query: { 
@@ -162,6 +214,7 @@ export function useResolverStatus(resolverAddress: string) {
 // Hook for admin contract operations with better error handling
 export function useAdminOperations() {
   const { address } = useAccount()
+  const { makerRegistry, resolverRegistry } = useNetworkContracts()
   const { writeContract, isPending, error, isSuccess, reset } = useWriteContract()
 
   const handleContractWrite = async (contractCall: () => void) => {
@@ -189,7 +242,8 @@ export function useAdminOperations() {
 
     return handleContractWrite(() => 
       writeContract({
-        ...CONTRACTS.MAKER_REGISTRY,
+        address: makerRegistry as Address,
+        abi: CONTRACTS.MAKER_REGISTRY.abi,
         functionName: 'registerMaker',
         args: [identityProof, makerAddress as `0x${string}`, isForeigner]
       })
@@ -206,7 +260,8 @@ export function useAdminOperations() {
 
     return handleContractWrite(() =>
       writeContract({
-        ...CONTRACTS.MAKER_REGISTRY,
+        address: makerRegistry as Address,
+        abi: CONTRACTS.MAKER_REGISTRY.abi,
         functionName: 'editMaker',
         args: [makerAddress as `0x${string}`, newProof]
       })
@@ -220,7 +275,8 @@ export function useAdminOperations() {
 
     return handleContractWrite(() =>
       writeContract({
-        ...CONTRACTS.MAKER_REGISTRY,
+        address: makerRegistry as Address,
+        abi: CONTRACTS.MAKER_REGISTRY.abi,
         functionName: 'editMaker',
         args: [makerAddress as `0x${string}`, ''] // Empty string deletes the maker
       })
@@ -234,7 +290,8 @@ export function useAdminOperations() {
 
     return handleContractWrite(() =>
       writeContract({
-        ...CONTRACTS.RESOLVER_REGISTRY,
+        address: resolverRegistry as Address,
+        abi: CONTRACTS.RESOLVER_REGISTRY.abi,
         functionName: 'addResolver',
         args: [resolverAddress as `0x${string}`]
       })
@@ -248,7 +305,8 @@ export function useAdminOperations() {
 
     return handleContractWrite(() =>
       writeContract({
-        ...CONTRACTS.RESOLVER_REGISTRY,
+        address: resolverRegistry as Address,
+        abi: CONTRACTS.RESOLVER_REGISTRY.abi,
         functionName: 'removeResolver',
         args: [resolverAddress as `0x${string}`]
       })
@@ -274,9 +332,10 @@ export function useAdminOperations() {
 // Hook for ERC20 token operations
 export function useERC20(tokenAddress?: Address, spender?: Address) {
   const { address: userAddress } = useAccount()
+  const { orderProtocol } = useNetworkContracts()
   
   // Default spender is OrderProtocol for backward compatibility
-  const spenderAddress = spender || CONTRACTS.ORDER_PROTOCOL.address
+  const spenderAddress = spender || orderProtocol
   
   const balanceResult = useReadContract({
     address: tokenAddress,
@@ -294,7 +353,7 @@ export function useERC20(tokenAddress?: Address, spender?: Address) {
     address: tokenAddress,
     abi: CONTRACTS.ERC20.abi,
     functionName: 'allowance',
-    args: userAddress ? [userAddress, spenderAddress] : undefined,
+    args: userAddress ? [userAddress, spenderAddress as Address] : undefined,
     query: {
       enabled: !!tokenAddress && !!userAddress,
       staleTime: 5000,
@@ -321,7 +380,7 @@ export function useERC20(tokenAddress?: Address, spender?: Address) {
       address: tokenAddress,
       abi: CONTRACTS.ERC20.abi,
       functionName: 'approve',
-      args: [spenderAddress, amount]
+      args: [spenderAddress as Address, amount]
     })
   }, [tokenAddress, writeContract, spenderAddress])
 
@@ -342,12 +401,22 @@ export function useERC20(tokenAddress?: Address, spender?: Address) {
 
 // Hook for creating orders
 export function useCreateOrder() {
+  const { orderProtocol, network } = useNetworkContracts()
+  const networkToken = useNetworkToken()
   const { writeContract, data: hash, error, isPending } = useWriteContract()
   const [isLoading, setIsLoading] = useState(false)
+  const chainId = useChainId()
 
   const createOrder = useCallback(async (orderData: OrderData) => {
     try {
       setIsLoading(true)
+      
+      // Debug network selection
+      console.log('🌐 Network Debug Info:')
+      console.log(`Chain ID: ${chainId}`)
+      console.log(`Detected Network: ${network}`)
+      console.log(`OrderProtocol Address: ${orderProtocol}`)
+      console.log(`Token: ${networkToken.name} (${networkToken.address})`)
       
       // According to smart contract, all amounts should be in 18 decimals:
       // _amount: INR amount in 18 decimals
@@ -357,7 +426,7 @@ export function useCreateOrder() {
       const endPrice = parseUnits(orderData.endPrice, 18) // Price in INR per token, 18 decimals
       
       await writeContract({
-        address: CONTRACTS.ORDER_PROTOCOL.address,
+        address: orderProtocol as Address,
         abi: CONTRACTS.ORDER_PROTOCOL.abi,
         functionName: 'createOrder',
         args: [
@@ -389,20 +458,41 @@ export function useCreateOrder() {
     blockNumber: number;
   }) => {
     try {
+      const requestBody = {
+        ...orderData,
+        tokenAddress: networkToken.address, // Network-aware token address
+        network: network // Include current network information
+      }
+      
+      // Debug order data before sending to backend
+      console.log('💾 Saving Order to Database:')
+      console.log(`Network: ${network}`)
+      console.log(`Token Address: ${networkToken.address}`)
+      console.log(`Order ID: ${orderData.orderId}`)
+      console.log('📦 Full Request Body:', requestBody)
+      
       // Use the Next.js API route which proxies to the backend
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          ...orderData,
-          tokenAddress: COMMON_TOKENS[0].address // Always MockUSDC
-        })
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: 'Unknown error', message: errorText }
+        }
+        
+        console.error('❌ Database save failed:')
+        console.error(`Status: ${response.status}`)
+        console.error(`Error Data:`, errorData)
+        console.error(`Response Text:`, errorText)
         
         // Handle the case where order already exists (race condition with resolver bot)
         if (response.status === 409 && errorData.error === 'Order already exists') {
@@ -432,7 +522,7 @@ export function useCreateOrder() {
           }
         }
         
-        throw new Error(errorData.message || 'Failed to save order to database')
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to save order to database`)
       }
       
       return await response.json()
@@ -453,8 +543,9 @@ export function useCreateOrder() {
 
 // Hook for resolver approval and staking
 export function useResolverApproval() {
-  const { address } = useAccount()
-  const mockUsdcToken = COMMON_TOKENS[0] // MockUSDC token
+  const { address, chainId } = useAccount()
+  const { resolverRegistry } = useNetworkContracts()
+  const mockUsdcToken = useNetworkToken() // Network-aware token
   
   // STAKING_AMOUNT from contract: 10 MockUSDC (10 * 1e6 with 6 decimals)
   const STAKING_AMOUNT = BigInt(10 * 1e6) // 10 MockUSDC with 6 decimals
@@ -467,11 +558,12 @@ export function useResolverApproval() {
     isApproving, 
     error: tokenError,
     refetch: refetchToken
-  } = useERC20(mockUsdcToken.address, CONTRACTS.RESOLVER_REGISTRY.address)
+  } = useERC20(mockUsdcToken.address, resolverRegistry as Address)
 
   // Check if user is already a resolver
   const { data: isResolver, isLoading: isCheckingResolver } = useReadContract({
-    ...CONTRACTS.RESOLVER_REGISTRY,
+    address: resolverRegistry as Address,
+    abi: CONTRACTS.RESOLVER_REGISTRY.abi,
     functionName: 'isResolver',
     args: address ? [address] : undefined,
     query: {
@@ -535,7 +627,7 @@ export function useMockUsdcFaucet() {
   const [isLoading, setIsLoading] = useState(false)
   const [localError, setLocalError] = useState<Error | null>(null)
   
-  const mockUsdcToken = COMMON_TOKENS[0] // MockUSDC token
+  const mockUsdcToken = useNetworkToken() // Network-aware token
   
   // Faucet amount: 1000 MockUSDC (enough for multiple stakings)
   const FAUCET_AMOUNT = BigInt(1000 * 1e6) // 1000 MockUSDC with 6 decimals
@@ -627,8 +719,11 @@ export function useOrders(walletAddress?: Address) {
 
 // Hook for fetching order details from the smart contract
 export function useOrderDetails(orderId: string | null) {
+  const { orderProtocol } = useNetworkContracts()
+  const networkToken = useNetworkToken()
   const { data: orderData, isLoading, error, refetch } = useReadContract({
-    ...CONTRACTS.ORDER_PROTOCOL,
+    address: orderProtocol as Address,
+    abi: CONTRACTS.ORDER_PROTOCOL.abi,
     functionName: 'getOrder',
     args: orderId ? [orderId as `0x${string}`] : undefined,
     query: {
@@ -660,7 +755,7 @@ export function useOrderDetails(orderId: string | null) {
       taker: taker as string,
       recipientUpiAddress: recipientUpiAddress as string,
       amount: formatUnits(amount as bigint, 18), // INR amount is in 18 decimals
-      token: COMMON_TOKENS[0].address, // Always PYUSD now
+      token: networkToken.address, // Network-aware token
       startPrice: formatUnits(startPrice as bigint, 18),
       acceptedPrice: acceptedPrice ? formatUnits(acceptedPrice as bigint, 18) : '0',
       endPrice: formatUnits(endPrice as bigint, 18),
