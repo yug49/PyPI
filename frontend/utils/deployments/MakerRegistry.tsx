@@ -1,4 +1,8 @@
-const MakerRegistryAddress = "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55";
+const MakerRegistryAddress = "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55"; // Flow EVM Testnet (default)
+const MakerRegistryAddresses = {
+    flow: "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55",
+    arbitrum: "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55"
+};
 
 const MakerRegistryAbi = [
         {
@@ -208,4 +212,4 @@ const MakerRegistryAbi = [
         }
     ];
 
-export { MakerRegistryAddress, MakerRegistryAbi };
+export { MakerRegistryAddress, MakerRegistryAddresses, MakerRegistryAbi };
