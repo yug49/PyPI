@@ -2,7 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount, useBalance, useChainId, useSwitchChain } from 'wagmi'
-import { flowEvmTestnet } from './Providers'
+import { flowEvmTestnet, arbitrumSepolia, supportedChains } from './Providers'
 
 export function WalletConnection() {
   const { address, isConnected } = useAccount()
@@ -12,13 +12,17 @@ export function WalletConnection() {
     address: address,
   })
 
-  const isCorrectNetwork = chainId === flowEvmTestnet.id
-  // Always show FLOW as symbol for Flow EVM testnet
-  const balanceFormatted = balance
-    ? `${parseFloat(balance.formatted).toFixed(4)} FLOW`
-    : '0.0000 FLOW'
+  // Check if current network is supported
+  const currentChain = supportedChains.find(chain => chain.id === chainId)
+  const isCorrectNetwork = !!currentChain
+  
+  // Format balance with appropriate symbol
+  const balanceFormatted = balance && currentChain
+    ? `${parseFloat(balance.formatted).toFixed(4)} ${currentChain.nativeCurrency.symbol}`
+    : '0.0000 ETH'
 
   const handleSwitchNetwork = () => {
+    // Default to Flow EVM Testnet for now, but this could be made configurable
     switchChain({ chainId: flowEvmTestnet.id })
   }
 
@@ -28,21 +32,21 @@ export function WalletConnection() {
       {isConnected && !isCorrectNetwork && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-          <span className="text-red-700 text-sm font-medium">Wrong Network</span>
+          <span className="text-red-700 text-sm font-medium">Unsupported Network</span>
           <button
             onClick={handleSwitchNetwork}
             className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors"
           >
-            Switch to Flow EVM Testnet
+            Switch Network
           </button>
         </div>
       )}
 
       {/* Correct Network Indicator */}
-      {isConnected && isCorrectNetwork && (
+      {isConnected && isCorrectNetwork && currentChain && (
         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span className="text-green-700 text-sm font-medium">Flow EVM Testnet</span>
+          <span className="text-green-700 text-sm font-medium">{currentChain.name}</span>
         </div>
       )}
 
