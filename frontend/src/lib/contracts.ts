@@ -1,7 +1,12 @@
-// Contract addresses and ABIs (Flow EVM Testnet)
+import { MakerRegistryAddress, MakerRegistryAddresses } from '../../utils/deployments/MakerRegistry';
+import { ResolverRegistryAddress, ResolverRegistryAddresses } from '../../utils/deployments/ResolverRegistry';
+import { OrderProtocolAddress, OrderProtocolAddresses } from '../../utils/deployments/OrderProtocol';
+
+// Contract addresses and ABIs - supports both Flow EVM Testnet (default) and Arbitrum Sepolia
 export const CONTRACTS = {
   MAKER_REGISTRY: {
-    address: "0x40F05c21eE1ab02B1Ddc11D327253CEdeE5D7D55" as const,
+    address: MakerRegistryAddress, // Default (Flow)
+    addresses: MakerRegistryAddresses,
     abi: [
       {
         "type": "constructor",
@@ -150,7 +155,8 @@ export const CONTRACTS = {
     ] as const
   },
   RESOLVER_REGISTRY: {
-    address: "0xB39F0F6eD29B4502c199171E2d483fCe05E0f5b2" as const,
+    address: ResolverRegistryAddress, // Default (Flow)
+    addresses: ResolverRegistryAddresses,
     abi: [
       {
         "type": "constructor",
@@ -313,7 +319,8 @@ export const CONTRACTS = {
     ] as const
   },
   ORDER_PROTOCOL: {
-    address: "0x756523eDF6FfC690361Df3c61Ec3719F77e9Aa1a" as const,
+    address: OrderProtocolAddress, // Default (Flow)
+    addresses: OrderProtocolAddresses,
     abi: [
       {
         "type": "constructor",
@@ -1018,3 +1025,16 @@ export const CONTRACTS = {
     ] as const
   }
 } as const;
+
+// Helper function to get contract address for a specific network
+export function getContractAddressForNetwork(
+  contractName: keyof typeof CONTRACTS,
+  network: 'flow' | 'arbitrum' = 'flow'
+): string {
+  const contract = CONTRACTS[contractName] as any;
+  if ('addresses' in contract && contract.addresses) {
+    return contract.addresses[network];
+  }
+  // Fallback to default address for contracts that don't have network-specific addresses
+  return contract.address || '';
+}
